@@ -4,6 +4,7 @@ import {
   Dimensions,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -25,6 +26,7 @@ import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {DEFAULT_PRESET, DEFAULT_TRANSFORM} from '../types/models';
 import {getFillTransform, getFitTransform, snapToZero} from '../utils/imageMath';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Editor'>;
 
@@ -33,6 +35,7 @@ const MIN_SCALE = 0.5;
 
 export const EditorScreen = ({route, navigation}: Props) => {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
   const project = useAppStore(state =>
     state.projects.find(item => item.id === route.params.projectId),
   );
@@ -200,7 +203,6 @@ export const EditorScreen = ({route, navigation}: Props) => {
 
   const controlsStyle = useAnimatedStyle(() => ({
     opacity: controlsOpacity.value,
-    transform: [{translateY: isInteracting ? 22 : 0}],
   }));
 
   if (!project) {
@@ -216,7 +218,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
 
   return (
     <View style={[styles.root, {backgroundColor: theme.colors.background}]}> 
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, {paddingTop: insets.top}]}>
         <Pressable onPress={() => navigation.goBack()} style={styles.topBtn}>
           <Text style={[styles.topBtnText, {color: theme.colors.brandPrimary}]}>Back</Text>
         </Pressable>
@@ -242,20 +244,25 @@ export const EditorScreen = ({route, navigation}: Props) => {
         </View>
       </View>
 
-      <GestureDetector gesture={gesture}>
-        <View style={[styles.canvas, {height: canvasHeight, borderRadius: tokens.radius.canvas}]}> 
-          <Animated.View style={[StyleSheet.absoluteFill, imageStyle]}>
-            <Image source={{uri: project.imageUri}} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          </Animated.View>
-          <GridOverlayCanvas
-            rows={project.preset.rows}
-            columns={project.preset.columns}
-            strong={seamInspect || isInteracting}
-          />
-        </View>
-      </GestureDetector>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        <GestureDetector gesture={gesture}>
+          <View style={[styles.canvas, {height: canvasHeight, borderRadius: tokens.radius.canvas}]}>
+            <Animated.View style={[StyleSheet.absoluteFill, imageStyle]}>
+              <Image source={{uri: project.imageUri}} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            </Animated.View>
+            <GridOverlayCanvas
+              rows={project.preset.rows}
+              columns={project.preset.columns}
+              strong={seamInspect || isInteracting}
+            />
+          </View>
+        </GestureDetector>
+      </ScrollView>
 
-      <Animated.View style={[styles.controls, controlsStyle]}>
+      <Animated.View style={[styles.controls, controlsStyle, {paddingBottom: insets.bottom + tokens.spacing.s2}]}>
         <Text style={[styles.sectionLabel, {color: theme.colors.textSecondary}]}>Preset</Text>
         <PresetPicker
           selected={project.preset}
@@ -323,6 +330,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: tokens.spacing.s1,
   },
   topBar: {
     flexDirection: 'row',

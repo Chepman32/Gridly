@@ -32,7 +32,19 @@ export const CreateScreen = () => {
   const openEditorForUri = React.useCallback(
     async (uri: string) => {
       try {
-        const project = await addProject({imageUri: uri, preset: selectedPreset});
+        let permanentUri = uri;
+        const normalizedSource = uri.replace(/^file:\/\//, '');
+        if (!normalizedSource.startsWith(RNFS.DocumentDirectoryPath)) {
+          const dir = `${RNFS.DocumentDirectoryPath}/gridly/images`;
+          if (!(await RNFS.exists(dir))) {
+            await RNFS.mkdir(dir);
+          }
+          const ext = normalizedSource.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg';
+          const dest = `${dir}/${Date.now()}.${ext}`;
+          await RNFS.copyFile(uri, dest);
+          permanentUri = `file://${dest}`;
+        }
+        const project = await addProject({imageUri: permanentUri, preset: selectedPreset});
         navigation.navigate('Editor', {projectId: project.id});
       } catch {
         Alert.alert('Import failed', 'Could not create a project from this file.');

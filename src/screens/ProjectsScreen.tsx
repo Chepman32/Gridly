@@ -9,7 +9,8 @@ import {
   View,
 } from 'react-native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {useNavigation} from '@react-navigation/native';
+import {CompositeNavigationProp, useNavigation} from '@react-navigation/native';
+import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {ScreenContainer} from '../components/ScreenContainer';
 import {ProjectCard} from '../components/ProjectCard';
@@ -17,9 +18,12 @@ import {EmptyState} from '../components/EmptyState';
 import {useAppStore} from '../state/useAppStore';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
-import {RootStackParamList} from '../navigation/types';
+import {MainTabsParamList, RootStackParamList} from '../navigation/types';
 
-type Nav = NativeStackNavigationProp<RootStackParamList>;
+type Nav = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabsParamList, 'Projects'>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 export const ProjectsScreen = () => {
   const theme = useAppTheme();
@@ -31,6 +35,9 @@ export const ProjectsScreen = () => {
     () => projects.filter(project => project.favorite).slice(0, 6),
     [projects],
   );
+  const openCreateTab = React.useCallback(() => {
+    navigation.navigate('Create');
+  }, [navigation]);
 
   return (
     <ScreenContainer>
@@ -51,7 +58,7 @@ export const ProjectsScreen = () => {
           title="Create your first grid"
           subtitle="Import one photo, align it once, then export perfectly ordered tiles."
           actionLabel="New Project"
-          onAction={() => navigation.navigate('MainTabs')}
+          onAction={openCreateTab}
         />
       ) : (
         <>
@@ -111,11 +118,13 @@ export const ProjectsScreen = () => {
         </>
       )}
 
-      <Pressable
-        onPress={() => navigation.navigate('MainTabs')}
-        style={[styles.floatingCta, {backgroundColor: theme.colors.brandPrimary}]}> 
-        <Text style={styles.floatingLabel}>+ New Project</Text>
-      </Pressable>
+      {projects.length > 0 ? (
+        <Pressable
+          onPress={openCreateTab}
+          style={[styles.floatingCta, {backgroundColor: theme.colors.brandPrimary}]}>
+          <Text style={styles.floatingLabel}>+ New Project</Text>
+        </Pressable>
+      ) : null}
     </ScreenContainer>
   );
 };

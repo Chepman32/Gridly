@@ -1,5 +1,5 @@
 import React from 'react';
-import {FlatList, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {ScreenContainer} from '../components/ScreenContainer';
 import {SegmentedControl} from '../components/SegmentedControl';
@@ -58,8 +58,19 @@ export const PreviewScreen = ({route, navigation}: Props) => {
           keyExtractor={item => String(item.index)}
           renderItem={({item}) => (
             <Pressable
-              style={[styles.tile, {borderColor: theme.colors.separator}]}
+              style={[styles.tile, {borderColor: theme.colors.separator, overflow: 'hidden'}]}
               accessibilityLabel={`Tile ${item.index} of ${tilePositions.length}, row ${item.row} column ${item.column}`}>
+              <Image
+                source={{uri: project.imageUri}}
+                style={{
+                  position: 'absolute',
+                  width: `${project.preset.columns * 100}%`,
+                  height: `${project.preset.rows * 100}%`,
+                  left: `${-(item.column - 1) * 100}%`,
+                  top: `${-(item.row - 1) * 100}%`,
+                }}
+                resizeMode="cover"
+              />
               {showNumbers ? (
                 <Text style={[styles.tileLabel, {color: theme.colors.textPrimary}]}>{item.index}</Text>
               ) : null}
