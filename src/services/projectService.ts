@@ -5,6 +5,7 @@ export const createProject = (params: {
   imageUri: string;
   name?: string;
   preset?: GridPreset;
+  folderId?: string;
 }): Project => {
   const now = new Date().toISOString();
   return {
@@ -13,6 +14,8 @@ export const createProject = (params: {
     imageUri: params.imageUri,
     createdAt: now,
     updatedAt: now,
+    folderId: params.folderId,
+    previousFolderId: undefined,
     favorite: false,
     preset: params.preset ?? DEFAULT_PRESET,
     tileResolution: 1080,
@@ -23,7 +26,7 @@ export const createProject = (params: {
   };
 };
 
-export const duplicateProject = (project: Project): Project => {
+export const duplicateProject = (project: Project, options?: {folderId?: string}): Project => {
   const now = new Date().toISOString();
   return {
     ...project,
@@ -31,6 +34,8 @@ export const duplicateProject = (project: Project): Project => {
     name: `${project.name} Copy`,
     createdAt: now,
     updatedAt: now,
+    folderId: options?.folderId ?? project.folderId,
+    previousFolderId: undefined,
     exports: [],
   };
 };

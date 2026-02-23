@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Alert, Platform, Pressable, StyleSheet, Text, View} from 'react-native';
 import {launchImageLibrary} from 'react-native-image-picker';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
@@ -33,16 +33,36 @@ export const CreateScreen = () => {
     async (uri: string) => {
       try {
         let permanentUri = uri;
-        const normalizedSource = uri.replace(/^file:\/\//, '');
+        const normalizedSource = decodeURIComponent(uri.replace(/^file:\/\//, ''));
         if (!normalizedSource.startsWith(RNFS.DocumentDirectoryPath)) {
           const dir = `${RNFS.DocumentDirectoryPath}/gridly/images`;
           if (!(await RNFS.exists(dir))) {
             await RNFS.mkdir(dir);
           }
           const ext = normalizedSource.split('.').pop()?.split('?')[0]?.toLowerCase() ?? 'jpg';
-          const dest = `${dir}/${Date.now()}.${ext}`;
-          await RNFS.copyFile(uri, dest);
+          const dest = `${dir}/${Date.now()}-${Math.floor(Math.random() * 100000)}.${ext}`;
+          if (
+            Platform.OS === 'ios' &&
+            (uri.startsWith('ph://') || uri.startsWith('assets-library://'))
+          ) {
+            await RNFS.copyAssetsFileIOS(uri, dest, 0, 0, 1, 1, 'contain');
+          } else {
+            const sourcePath = uri.startsWith('file://') ? normalizedSource : uri;
+            await RNFS.copyFile(sourcePath, dest);
+          }
+          const copied = await RNFS.exists(dest);
+          if (!copied) {
+            throw new Error('Copied image is missing');
+          }
           permanentUri = `file://${dest}`;
+        }
+        if (permanentUri.startsWith('file://')) {
+          const exists = await RNFS.exists(
+            decodeURIComponent(permanentUri.replace(/^file:\/\//, '')),
+          );
+          if (!exists) {
+            throw new Error('Image file not found');
+          }
         }
         const project = await addProject({imageUri: permanentUri, preset: selectedPreset});
         navigation.navigate('Editor', {projectId: project.id});

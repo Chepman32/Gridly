@@ -6,6 +6,7 @@ import PhotoManipulator from 'react-native-photo-manipulator';
 import {Image} from 'react-native';
 import {ExportBatch, Project} from '../types/models';
 import {buildPostingOrder} from '../utils/postingOrder';
+import {resolveImageUri} from '../utils/imagePath';
 import {makeId} from '../utils/id';
 
 export type ExportStage =
@@ -62,8 +63,8 @@ export const exportTiles = async (
   const total = project.preset.columns * project.preset.rows;
   onProgress({stage: 'preparing', total});
 
-  const sourcePath = normalizePath(project.imageUri);
-  const sourceUri = `file://${sourcePath}`;
+  const sourceUri = resolveImageUri(project.imageUri);
+  const sourcePath = normalizePath(sourceUri);
   const exportDir = `${RNFS.DocumentDirectoryPath}/gridly/exports/${project.id}/${Date.now()}`;
   await ensureDirectory(`${RNFS.DocumentDirectoryPath}/gridly`);
   await ensureDirectory(`${RNFS.DocumentDirectoryPath}/gridly/exports`);

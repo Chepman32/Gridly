@@ -17,6 +17,16 @@ export type CropTransform = {
 
 export type TileResolution = 1080 | 2048 | number;
 
+export const ALL_PROJECTS_FOLDER_ID = 'folder-all-projects';
+export const TRASH_FOLDER_ID = 'folder-trash';
+
+export type Folder = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ExportBatch = {
   id: string;
   projectId: string;
@@ -35,6 +45,8 @@ export type Project = {
   imageUri: string;
   createdAt: string;
   updatedAt: string;
+  folderId?: string;
+  previousFolderId?: string;
   favorite: boolean;
   preset: GridPreset;
   tileResolution: TileResolution;
@@ -70,3 +82,6 @@ export const DEFAULT_TRANSFORM: CropTransform = {
   rotation: 0,
   fitMode: 'fill',
 };
+
+export const isProjectInTrash = (project: Pick<Project, 'folderId'>) =>
+  project.folderId === TRASH_FOLDER_ID;

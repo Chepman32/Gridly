@@ -11,6 +11,7 @@ import {useAppStore} from '../state/useAppStore';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {buildPostingOrder, buildTilePositions} from '../utils/postingOrder';
+import {resolveImageUri} from '../utils/imagePath';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
 type PreviewTab = 'Tiles' | 'Posting Order' | 'Simulation';
@@ -81,7 +82,7 @@ export const PreviewScreen = ({route, navigation}: Props) => {
           <View style={[styles.tileCanvas, {height: canvasHeight}]}>
             <Animated.View style={[StyleSheet.absoluteFill, imageAnimStyle]}>
               <Image
-                source={{uri: project.imageUri}}
+                source={{uri: resolveImageUri(project.imageUri)}}
                 style={StyleSheet.absoluteFill}
                 resizeMode="cover"
               />

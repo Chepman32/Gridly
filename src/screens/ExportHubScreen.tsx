@@ -8,6 +8,7 @@ import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {formatDate} from '../utils/date';
 import {RootStackParamList} from '../navigation/types';
+import {isProjectInTrash} from '../types/models';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -15,9 +16,11 @@ export const ExportHubScreen = () => {
   const theme = useAppTheme();
   const navigation = useNavigation<Nav>();
   const batches = useAppStore(state =>
-    state.projects.flatMap(project =>
-      project.exports.map(batch => ({batch, projectName: project.name, projectId: project.id})),
-    ),
+    state.projects
+      .filter(project => !isProjectInTrash(project))
+      .flatMap(project =>
+        project.exports.map(batch => ({batch, projectName: project.name, projectId: project.id})),
+      ),
   );
 
   return (

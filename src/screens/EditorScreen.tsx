@@ -26,6 +26,7 @@ import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {DEFAULT_PRESET, DEFAULT_TRANSFORM} from '../types/models';
 import {getFillTransform, getFitTransform, snapToZero} from '../utils/imageMath';
+import {resolveImageUri} from '../utils/imagePath';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Editor'>;
@@ -101,7 +102,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
     }
     let active = true;
     Image.getSize(
-      project.imageUri,
+      resolveImageUri(project.imageUri),
       (imgWidth, imgHeight) => {
         if (active) {
           setImageSize({
@@ -167,8 +168,8 @@ export const EditorScreen = ({route, navigation}: Props) => {
     historyIndexRef.current = stack.length - 1;
   };
 
-  const saveTransform = async () => {
-    await updateProject(projectId, {
+  const saveTransform = () => {
+    updateProject(projectId, {
       transform: {
         ...safeProject.transform,
         x: translateX.value,
@@ -358,7 +359,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
                 panStyle,
               ]}>
               <Animated.View style={[styles.imageInner, zoomRotateStyle]}>
-                <Image source={{uri: project.imageUri}} style={styles.canvasImage} resizeMode="cover" />
+                <Image source={{uri: resolveImageUri(project.imageUri)}} style={styles.canvasImage} resizeMode="cover" />
               </Animated.View>
             </Animated.View>
             <GridOverlayCanvas

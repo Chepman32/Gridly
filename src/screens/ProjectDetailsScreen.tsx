@@ -9,6 +9,7 @@ import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {formatDate} from '../utils/date';
 import {SecondaryButton} from '../components/SecondaryButton';
+import {resolveImageUri} from '../utils/imagePath';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProjectDetails'>;
 
@@ -33,7 +34,7 @@ export const ProjectDetailsScreen = ({route, navigation}: Props) => {
     <ScreenContainer>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.hero, {backgroundColor: theme.colors.surface, borderColor: theme.colors.separator}]}> 
-          <Image source={{uri: project.imageUri}} style={styles.thumb} />
+          <Image source={{uri: resolveImageUri(project.imageUri)}} style={styles.thumb} />
           <View style={styles.heroMeta}>
             <Text style={[styles.title, {color: theme.colors.textPrimary}]}>{project.name}</Text>
             <Pressable onPress={() => updateProject(project.id, {favorite: !project.favorite})}>
@@ -75,12 +76,12 @@ export const ProjectDetailsScreen = ({route, navigation}: Props) => {
         </View>
 
         <SecondaryButton
-          label="Delete"
+          label="Move to Trash"
           onPress={() =>
-            Alert.alert('Delete project', 'This action cannot be undone.', [
+            Alert.alert('Move to Trash', 'You can recover this project later from the Projects screen.', [
               {text: 'Cancel', style: 'cancel'},
               {
-                text: 'Delete',
+                text: 'Move',
                 style: 'destructive',
                 onPress: async () => {
                   await removeProject(project.id);

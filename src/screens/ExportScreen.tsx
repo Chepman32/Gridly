@@ -11,12 +11,15 @@ import {useAppStore} from '../state/useAppStore';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {formatDate} from '../utils/date';
+import {isProjectInTrash} from '../types/models';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Export'>;
 
 export const ExportScreen = ({route}: Props) => {
   const theme = useAppTheme();
-  const projects = useAppStore(state => state.projects);
+  const projects = useAppStore(state =>
+    state.projects.filter(project => !isProjectInTrash(project)),
+  );
   const addBatch = useAppStore(state => state.addExportBatch);
   const project = React.useMemo(() => {
     if (route.params?.projectId) {

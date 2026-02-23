@@ -2185,6 +2185,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-native-menu/menu@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@react-native-menu/menu@npm:2.0.0"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/1e88e1892730c70e28a654a8df6427f80f1b88880eaa62f2744072b9cebead4e834490d15ef7f0b91eadf9cb1ec9241b29f116ce7e94661685b41faf10af3fa3
+  languageName: node
+  linkType: hard
+
 "@react-native/assets-registry@npm:0.84.0":
   version: 0.84.0
   resolution: "@react-native/assets-registry@npm:0.84.0"
@@ -2887,6 +2897,7 @@ __metadata:
     "@react-native-community/cli": "npm:20.1.0"
     "@react-native-community/cli-platform-android": "npm:20.1.0"
     "@react-native-community/cli-platform-ios": "npm:20.1.0"
+    "@react-native-menu/menu": "npm:^2.0.0"
     "@react-native/babel-preset": "npm:0.84.0"
     "@react-native/eslint-config": "npm:0.84.0"
     "@react-native/metro-config": "npm:0.84.0"
@@ -2907,6 +2918,7 @@ __metadata:
     react-native-fs: "npm:^2.20.0"
     react-native-gesture-handler: "npm:^2.30.0"
     react-native-image-picker: "npm:^8.2.1"
+    react-native-mmkv: "npm:^3.2.0"
     react-native-photo-manipulator: "npm:^1.9.2"
     react-native-reanimated: "npm:^4.2.2"
     react-native-safe-area-context: "npm:^5.5.2"
@@ -7956,6 +7968,16 @@ __metadata:
     react: "*"
     react-native: "*"
   checksum: 10c0/87d20b900aded7d44c90afb946a7aa03c23a94ca3dd547bdddc2303b85357e4aab22567a57b19f1558d6c8be7058e3dcf34faa1e15182d1604f90974266d9a1d
+  languageName: node
+  linkType: hard
+
+"react-native-mmkv@npm:^3.2.0":
+  version: 3.3.3
+  resolution: "react-native-mmkv@npm:3.3.3"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/efd7f725674d686ea126a213bd8c4270e8e4e8f306917a1b846a9f7ddf652ad057c7d509a9292d7bbf6a58603d4ab5a18e0c3b0d1b00447df45eeac81cbbd1e1
   languageName: node
   linkType: hard
 
