@@ -1,5 +1,7 @@
 import React from 'react';
-import {FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import Animated, {useAnimatedStyle, useSharedValue} from 'react-native-reanimated';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {ScreenContainer} from '../components/ScreenContainer';
 import {SegmentedControl} from '../components/SegmentedControl';
@@ -13,6 +15,8 @@ import {buildPostingOrder, buildTilePositions} from '../utils/postingOrder';
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
 type PreviewTab = 'Tiles' | 'Posting Order' | 'Simulation';
 
+const CANVAS_WIDTH = Dimensions.get('window').width - tokens.spacing.s2 * 2;
+
 export const PreviewScreen = ({route, navigation}: Props) => {
   const theme = useAppTheme();
   const project = useAppStore(state =>
@@ -20,6 +24,28 @@ export const PreviewScreen = ({route, navigation}: Props) => {
   );
   const [tab, setTab] = React.useState<PreviewTab>('Tiles');
   const [showNumbers, setShowNumbers] = React.useState(true);
+
+  const panX = useSharedValue(0);
+  const panY = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      startX.value = panX.value;
+      startY.value = panY.value;
+    })
+    .onUpdate(event => {
+      panX.value = startX.value + event.translationX;
+      panY.value = startY.value + event.translationY;
+    });
+
+  const imageAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      {translateX: panX.value},
+      {translateY: panY.value},
+    ],
+  }));
 
   if (!project) {
     return (
@@ -31,6 +57,7 @@ export const PreviewScreen = ({route, navigation}: Props) => {
 
   const tilePositions = buildTilePositions(project.preset);
   const postingOrder = buildPostingOrder(project.preset);
+  const canvasHeight = (CANVAS_WIDTH * project.preset.rows) / project.preset.columns;
 
   return (
     <ScreenContainer>
@@ -50,33 +77,34 @@ export const PreviewScreen = ({route, navigation}: Props) => {
       />
 
       {tab === 'Tiles' ? (
-        <FlatList
-          data={tilePositions}
-          numColumns={project.preset.columns}
-          key={project.preset.id}
-          contentContainerStyle={styles.tileGrid}
-          keyExtractor={item => String(item.index)}
-          renderItem={({item}) => (
-            <Pressable
-              style={[styles.tile, {borderColor: theme.colors.separator, overflow: 'hidden'}]}
-              accessibilityLabel={`Tile ${item.index} of ${tilePositions.length}, row ${item.row} column ${item.column}`}>
+        <GestureDetector gesture={panGesture}>
+          <View style={[styles.tileCanvas, {height: canvasHeight}]}>
+            <Animated.View style={[StyleSheet.absoluteFill, imageAnimStyle]}>
               <Image
                 source={{uri: project.imageUri}}
-                style={{
-                  position: 'absolute',
-                  width: `${project.preset.columns * 100}%`,
-                  height: `${project.preset.rows * 100}%`,
-                  left: `${-(item.column - 1) * 100}%`,
-                  top: `${-(item.row - 1) * 100}%`,
-                }}
+                style={StyleSheet.absoluteFill}
                 resizeMode="cover"
               />
-              {showNumbers ? (
-                <Text style={[styles.tileLabel, {color: theme.colors.textPrimary}]}>{item.index}</Text>
-              ) : null}
-            </Pressable>
-          )}
-        />
+            </Animated.View>
+            {tilePositions.map(tile => (
+              <View
+                key={tile.index}
+                style={[
+                  styles.tileCell,
+                  {
+                    left: `${((tile.column - 1) / project.preset.columns) * 100}%`,
+                    top: `${((tile.row - 1) / project.preset.rows) * 100}%`,
+                    width: `${(1 / project.preset.columns) * 100}%`,
+                    height: `${(1 / project.preset.rows) * 100}%`,
+                  },
+                ]}>
+                {showNumbers ? (
+                  <Text style={styles.tileLabelOverlay}>{tile.index}</Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        </GestureDetector>
       ) : null}
 
       {tab === 'Posting Order' ? (
@@ -85,7 +113,7 @@ export const PreviewScreen = ({route, navigation}: Props) => {
           {postingOrder.map((tile, index) => (
             <View
               key={tile}
-              style={[styles.orderRow, {borderColor: theme.colors.separator}]}> 
+              style={[styles.orderRow, {borderColor: theme.colors.separator}]}>
               <Text style={[styles.orderText, {color: theme.colors.textPrimary}]}>Step {index + 1}: Post tile {tile}</Text>
             </View>
           ))}
@@ -93,12 +121,12 @@ export const PreviewScreen = ({route, navigation}: Props) => {
       ) : null}
 
       {tab === 'Simulation' ? (
-        <View style={[styles.simulation, {borderColor: theme.colors.separator}]}> 
+        <View style={[styles.simulation, {borderColor: theme.colors.separator}]}>
           <Text style={[styles.simTitle, {color: theme.colors.textPrimary}]}>Profile Simulation</Text>
           <Text style={[styles.caption, {color: theme.colors.textSecondary}]}>Neutral grid preview with final target composition orientation.</Text>
-          <View style={[styles.simGrid, {borderColor: theme.colors.separator}]}> 
+          <View style={[styles.simGrid, {borderColor: theme.colors.separator}]}>
             {Array.from({length: Math.min(9, tilePositions.length)}).map((_, idx) => (
-              <View key={idx} style={[styles.simCell, {borderColor: theme.colors.separator}]}> 
+              <View key={idx} style={[styles.simCell, {borderColor: theme.colors.separator}]}>
                 <Text style={{color: theme.colors.textSecondary}}>{idx + 1}</Text>
               </View>
             ))}
@@ -108,7 +136,7 @@ export const PreviewScreen = ({route, navigation}: Props) => {
 
       <Pressable
         onPress={() => setShowNumbers(current => !current)}
-        style={[styles.toggleRow, {borderColor: theme.colors.separator}]}> 
+        style={[styles.toggleRow, {borderColor: theme.colors.separator}]}>
         <Text style={[styles.toggleText, {color: theme.colors.textPrimary}]}>Number overlays</Text>
         <Text style={[styles.toggleText, {color: theme.colors.textSecondary}]}>{showNumbers ? 'On' : 'Off'}</Text>
       </Pressable>
@@ -130,21 +158,27 @@ const styles = StyleSheet.create({
   exportBtn: {
     width: 120,
   },
-  tileGrid: {
-    paddingTop: tokens.spacing.s2,
-    gap: 8,
+  tileCanvas: {
+    marginTop: tokens.spacing.s2,
+    width: CANVAS_WIDTH,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#111',
   },
-  tile: {
-    aspectRatio: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    margin: 4,
+  tileCell: {
+    position: 'absolute',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
   },
-  tileLabel: {
-    ...tokens.typography.headline,
+  tileLabelOverlay: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'white',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 3,
   },
   orderList: {
     paddingTop: tokens.spacing.s2,

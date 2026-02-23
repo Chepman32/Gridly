@@ -31,7 +31,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 type Props = NativeStackScreenProps<RootStackParamList, 'Editor'>;
 
 const MAX_SCALE = 4;
-const MIN_SCALE = 0.5;
+const MIN_SCALE = 1;
+const FALLBACK_IMAGE_SIZE = {width: 1, height: 1};
 
 export const EditorScreen = ({route, navigation}: Props) => {
   const theme = useAppTheme();
@@ -60,6 +61,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
 
   const [isInteracting, setInteracting] = React.useState(false);
   const [seamInspect, setSeamInspect] = React.useState(false);
+  const [imageSize, setImageSize] = React.useState(FALLBACK_IMAGE_SIZE);
 
   const historyRef = React.useRef([safeProject.transform]);
   const historyIndexRef = React.useRef(0);
@@ -70,8 +72,86 @@ export const EditorScreen = ({route, navigation}: Props) => {
   const rotation = useSharedValue(safeProject.transform.rotation);
   const panStartX = useSharedValue(safeProject.transform.x);
   const panStartY = useSharedValue(safeProject.transform.y);
+  const pinchStartScale = useSharedValue(safeProject.transform.scale);
   const controlsOpacity = useSharedValue(1);
   const projectId = safeProject.id;
+  const width = Dimensions.get('window').width - tokens.spacing.s2 * 2;
+  const canvasHeight = (width * safeProject.preset.rows) / safeProject.preset.columns;
+  const imageAspect = imageSize.width / imageSize.height;
+  const canvasAspect = width / canvasHeight;
+  const baseImageWidth = imageAspect > canvasAspect ? canvasHeight * imageAspect : width;
+  const baseImageHeight = imageAspect > canvasAspect ? canvasHeight : width / imageAspect;
+
+  const clampTranslation = (x: number, y: number, currentScale: number) => {
+    'worklet';
+    const scaledWidth = baseImageWidth * currentScale;
+    const scaledHeight = baseImageHeight * currentScale;
+    const maxX = Math.max(0, (scaledWidth - width) / 2);
+    const maxY = Math.max(0, (scaledHeight - canvasHeight) / 2);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  };
+
+  React.useEffect(() => {
+    if (!project?.imageUri) {
+      setImageSize(FALLBACK_IMAGE_SIZE);
+      return;
+    }
+    let active = true;
+    Image.getSize(
+      project.imageUri,
+      (imgWidth, imgHeight) => {
+        if (active) {
+          setImageSize({
+            width: Math.max(1, imgWidth),
+            height: Math.max(1, imgHeight),
+          });
+        }
+      },
+      () => {
+        if (active) {
+          setImageSize(FALLBACK_IMAGE_SIZE);
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [project?.imageUri]);
+
+  React.useEffect(() => {
+    if (!project) {
+      return;
+    }
+    const clamped = clampTranslation(translateX.value, translateY.value, scale.value);
+    if (clamped.x === translateX.value && clamped.y === translateY.value) {
+      return;
+    }
+    translateX.value = clamped.x;
+    translateY.value = clamped.y;
+    void updateProject(projectId, {
+      transform: {
+        ...safeProject.transform,
+        x: clamped.x,
+        y: clamped.y,
+        scale: scale.value,
+        rotation: rotation.value,
+      },
+    });
+  }, [
+    baseImageHeight,
+    baseImageWidth,
+    canvasHeight,
+    project,
+    projectId,
+    safeProject.transform,
+    scale,
+    translateX,
+    translateY,
+    updateProject,
+  ]);
 
   const updateInteractionState = (active: boolean) => {
     setInteracting(active);
@@ -100,9 +180,11 @@ export const EditorScreen = ({route, navigation}: Props) => {
   };
 
   const applyTransform = (transform: typeof safeProject.transform) => {
-    translateX.value = transform.x;
-    translateY.value = transform.y;
-    scale.value = transform.scale;
+    const safeScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, transform.scale));
+    const clamped = clampTranslation(transform.x, transform.y, safeScale);
+    translateX.value = clamped.x;
+    translateY.value = clamped.y;
+    scale.value = safeScale;
     rotation.value = transform.rotation;
   };
 
@@ -133,10 +215,16 @@ export const EditorScreen = ({route, navigation}: Props) => {
       runOnJS(updateInteractionState)(true);
     })
     .onUpdate(event => {
-      translateX.value = panStartX.value + event.translationX;
-      translateY.value = panStartY.value + event.translationY;
+      const nextX = panStartX.value + event.translationX;
+      const nextY = panStartY.value + event.translationY;
+      const clamped = clampTranslation(nextX, nextY, scale.value);
+      translateX.value = clamped.x;
+      translateY.value = clamped.y;
     })
     .onEnd(() => {
+      const clamped = clampTranslation(translateX.value, translateY.value, scale.value);
+      translateX.value = clamped.x;
+      translateY.value = clamped.y;
       runOnJS(updateInteractionState)(false);
       runOnJS(pushHistory)({
         ...safeProject.transform,
@@ -149,12 +237,24 @@ export const EditorScreen = ({route, navigation}: Props) => {
     });
 
   const pinchGesture = Gesture.Pinch()
-    .onStart(() => runOnJS(updateInteractionState)(true))
+    .onStart(() => {
+      pinchStartScale.value = scale.value;
+      runOnJS(updateInteractionState)(true);
+    })
     .onUpdate(event => {
-      const next = scale.value * event.scale;
-      scale.value = Math.max(MIN_SCALE, Math.min(MAX_SCALE, next));
+      const nextScale = Math.max(
+        MIN_SCALE,
+        Math.min(MAX_SCALE, pinchStartScale.value * event.scale),
+      );
+      scale.value = nextScale;
+      const clamped = clampTranslation(translateX.value, translateY.value, nextScale);
+      translateX.value = clamped.x;
+      translateY.value = clamped.y;
     })
     .onEnd(() => {
+      const clamped = clampTranslation(translateX.value, translateY.value, scale.value);
+      translateX.value = clamped.x;
+      translateY.value = clamped.y;
       runOnJS(updateInteractionState)(false);
       runOnJS(pushHistory)({
         ...safeProject.transform,
@@ -192,13 +292,12 @@ export const EditorScreen = ({route, navigation}: Props) => {
     rotateGesture,
   );
 
-  const imageStyle = useAnimatedStyle(() => ({
-    transform: [
-      {translateX: translateX.value},
-      {translateY: translateY.value},
-      {scale: scale.value},
-      {rotate: `${rotation.value}deg`},
-    ],
+  const panStyle = useAnimatedStyle(() => ({
+    transform: [{translateX: translateX.value}, {translateY: translateY.value}],
+  }));
+
+  const zoomRotateStyle = useAnimatedStyle(() => ({
+    transform: [{scale: scale.value}, {rotate: `${rotation.value}deg`}],
   }));
 
   const controlsStyle = useAnimatedStyle(() => ({
@@ -212,9 +311,6 @@ export const EditorScreen = ({route, navigation}: Props) => {
       </View>
     );
   }
-
-  const width = Dimensions.get('window').width - tokens.spacing.s2 * 2;
-  const canvasHeight = (width * project.preset.rows) / project.preset.columns;
 
   return (
     <View style={[styles.root, {backgroundColor: theme.colors.background}]}> 
@@ -250,8 +346,20 @@ export const EditorScreen = ({route, navigation}: Props) => {
         showsVerticalScrollIndicator={false}>
         <GestureDetector gesture={gesture}>
           <View style={[styles.canvas, {height: canvasHeight, borderRadius: tokens.radius.canvas}]}>
-            <Animated.View style={[StyleSheet.absoluteFill, imageStyle]}>
-              <Image source={{uri: project.imageUri}} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <Animated.View
+              style={[
+                styles.imageFrame,
+                {
+                  width: baseImageWidth,
+                  height: baseImageHeight,
+                  left: (width - baseImageWidth) / 2,
+                  top: (canvasHeight - baseImageHeight) / 2,
+                },
+                panStyle,
+              ]}>
+              <Animated.View style={[styles.imageInner, zoomRotateStyle]}>
+                <Image source={{uri: project.imageUri}} style={styles.canvasImage} resizeMode="cover" />
+              </Animated.View>
             </Animated.View>
             <GridOverlayCanvas
               rows={project.preset.rows}
@@ -367,6 +475,17 @@ const styles = StyleSheet.create({
     marginHorizontal: tokens.spacing.s2,
     overflow: 'hidden',
     backgroundColor: '#111',
+  },
+  imageFrame: {
+    position: 'absolute',
+  },
+  imageInner: {
+    width: '100%',
+    height: '100%',
+  },
+  canvasImage: {
+    width: '100%',
+    height: '100%',
   },
   controls: {
     marginTop: tokens.spacing.s2,
