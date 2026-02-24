@@ -5,10 +5,12 @@ import {CompositeNavigationProp, useNavigation} from '@react-navigation/native';
 import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import {
   Alert,
+  LayoutAnimation,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -41,6 +43,21 @@ type FolderSection = {
 
 const isIos = Platform.OS === 'ios';
 const MOVE_TO_FOLDER_PREFIX = 'move_to_folder:';
+const ACCORDION_SPRING_ANIMATION: LayoutAnimation.Config = {
+  duration: 520,
+  create: {
+    type: LayoutAnimation.Types.spring,
+    property: LayoutAnimation.Properties.opacity,
+  },
+  update: {
+    type: LayoutAnimation.Types.spring,
+    springDamping: 0.82,
+  },
+  delete: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+    property: LayoutAnimation.Properties.opacity,
+  },
+};
 
 export const ProjectsScreen = () => {
   const theme = useAppTheme();
@@ -66,6 +83,12 @@ export const ProjectsScreen = () => {
     projectId: string;
     mode: 'trash' | 'permanent';
   } | null>(null);
+
+  React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      UIManager.setLayoutAnimationEnabledExperimental?.(true);
+    }
+  }, []);
 
   const activeProjects = React.useMemo(
     () => projects.filter(project => !isProjectInTrash(project)),
@@ -323,6 +346,7 @@ export const ProjectsScreen = () => {
   );
 
   const toggleAccordion = React.useCallback((sectionId: string) => {
+    LayoutAnimation.configureNext(ACCORDION_SPRING_ANIMATION);
     setExpandedFolders(prev => ({
       ...prev,
       [sectionId]: !prev[sectionId],
