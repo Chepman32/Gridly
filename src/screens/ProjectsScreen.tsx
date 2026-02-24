@@ -502,15 +502,8 @@ export const ProjectsScreen = () => {
           <Pressable accessibilityLabel="Settings" style={styles.iconBtn}>
             <Icon name="settings-outline" size={22} color={theme.colors.textPrimary} />
           </Pressable>
-          <Pressable accessibilityLabel="Select" style={styles.iconBtn}>
-            <Text style={[styles.selectText, {color: theme.colors.brandPrimary}]}>Select</Text>
-          </Pressable>
         </View>
       </View>
-
-      <Text style={[styles.hintText, {color: theme.colors.textSecondary}]}>
-        Hold project or folder for iOS context menu.
-      </Text>
 
       <View style={styles.accordionList}>
         {sections.map(section => {
@@ -527,9 +520,6 @@ export const ProjectsScreen = () => {
                   {section.name}
                 </Text>
               </View>
-              <Text style={[styles.accordionCount, {color: theme.colors.textSecondary}]}>
-                {section.projects.length}
-              </Text>
             </View>
           );
 
@@ -704,14 +694,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  selectText: {
-    ...tokens.typography.callout,
-    fontWeight: '600',
-  },
-  hintText: {
-    ...tokens.typography.footnote,
-    marginBottom: tokens.spacing.s2,
-  },
   accordionList: {
     gap: tokens.spacing.s2,
     paddingBottom: 120,
@@ -729,7 +711,6 @@ const styles = StyleSheet.create({
   accordionHeaderInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   accordionTitleWrap: {
     flexDirection: 'row',
@@ -738,10 +719,6 @@ const styles = StyleSheet.create({
   },
   accordionTitle: {
     ...tokens.typography.headline,
-  },
-  accordionCount: {
-    ...tokens.typography.footnote,
-    fontWeight: '600',
   },
   grid: {
     flexDirection: 'row',

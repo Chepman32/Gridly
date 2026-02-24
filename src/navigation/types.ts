@@ -1,6 +1,7 @@
 export type RootStackParamList = {
   Splash: undefined;
   MainTabs: undefined;
+  Create: undefined;
   Editor: {projectId: string};
   Preview: {projectId: string};
   Export: {projectId?: string};
@@ -9,7 +10,6 @@ export type RootStackParamList = {
 
 export type MainTabsParamList = {
   Projects: undefined;
-  Create: undefined;
   ExportHub: undefined;
   Learn: undefined;
 };

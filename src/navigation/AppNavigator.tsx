@@ -35,8 +35,6 @@ const TabNavigator = () => {
           const iconName =
             route.name === 'Projects'
               ? 'grid-outline'
-              : route.name === 'Create'
-              ? 'add-circle-outline'
               : route.name === 'ExportHub'
               ? 'download-outline'
               : 'book-outline';
@@ -44,7 +42,6 @@ const TabNavigator = () => {
         },
       })}>
       <Tabs.Screen name="Projects" component={ProjectsScreen} options={{title: 'Projects'}} />
-      <Tabs.Screen name="Create" component={CreateScreen} options={{title: 'Create'}} />
       <Tabs.Screen name="ExportHub" component={ExportHubScreen} options={{title: 'Export'}} />
       <Tabs.Screen name="Learn" component={LearnScreen} options={{title: 'Learn'}} />
     </Tabs.Navigator>
@@ -70,6 +67,7 @@ export const AppNavigator = () => {
           component={TabNavigator}
           options={{headerShown: false}}
         />
+        <RootStack.Screen name="Create" component={CreateScreen} options={{title: 'Create'}} />
         <RootStack.Screen
           name="Editor"
           component={EditorScreen}
