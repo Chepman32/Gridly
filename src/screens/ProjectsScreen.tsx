@@ -408,7 +408,15 @@ export const ProjectsScreen = () => {
   }, []);
 
   return (
-    <ScreenContainer scroll>
+    <ScreenContainer
+      scroll
+      floatingContent={
+        <Pressable
+          onPress={openCreateTab}
+          style={[styles.floatingCta, {backgroundColor: theme.colors.brandPrimary}]}>
+          <Icon name="add" size={30} color="#fff" />
+        </Pressable>
+      }>
       <View style={styles.headerRow}>
         <Text style={[styles.title, {color: theme.colors.textPrimary}]}>Projects</Text>
         <View style={styles.headerActions}>
@@ -513,7 +521,7 @@ export const ProjectsScreen = () => {
                               onPressAction={({nativeEvent}) =>
                                 handleProjectMenuAction(project, nativeEvent.event)
                               }>
-                              {card}
+                              <View collapsable={false}>{card}</View>
                             </MenuView>
                           ) : (
                             card
@@ -537,13 +545,6 @@ export const ProjectsScreen = () => {
         })}
       </View>
 
-      <View style={styles.bottomSpacer} />
-
-      <Pressable
-        onPress={openCreateTab}
-        style={[styles.floatingCta, {backgroundColor: theme.colors.brandPrimary}]}>
-        <Icon name="add" size={30} color="#fff" />
-      </Pressable>
     </ScreenContainer>
   );
 };
@@ -624,9 +625,6 @@ const styles = StyleSheet.create({
   },
   emptyFolderText: {
     ...tokens.typography.subhead,
-  },
-  bottomSpacer: {
-    height: 72,
   },
   floatingCta: {
     position: 'absolute',
