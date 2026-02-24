@@ -5,15 +5,22 @@ import {CompositeNavigationProp, useNavigation} from '@react-navigation/native';
 import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import {
   Alert,
-  LayoutAnimation,
+  type AlertButton,
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import Animated, {
+  FadeInDown,
+  FadeOutUp,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import {ScreenContainer} from '../components/ScreenContainer';
 import {ProjectCard} from '../components/ProjectCard';
 import {MainTabsParamList, RootStackParamList} from '../navigation/types';
@@ -43,20 +50,37 @@ type FolderSection = {
 
 const isIos = Platform.OS === 'ios';
 const MOVE_TO_FOLDER_PREFIX = 'move_to_folder:';
-const ACCORDION_SPRING_ANIMATION: LayoutAnimation.Config = {
-  duration: 520,
-  create: {
-    type: LayoutAnimation.Types.spring,
-    property: LayoutAnimation.Properties.opacity,
-  },
-  update: {
-    type: LayoutAnimation.Types.spring,
-    springDamping: 0.82,
-  },
-  delete: {
-    type: LayoutAnimation.Types.easeInEaseOut,
-    property: LayoutAnimation.Properties.opacity,
-  },
+const ACCORDION_LAYOUT_TRANSITION = LinearTransition.springify()
+  .damping(tokens.motion.spring.standard.damping + 12)
+  .stiffness(tokens.motion.spring.standard.stiffness)
+  .overshootClamping(1)
+  .energyThreshold(6e-8);
+const ACCORDION_CONTENT_ENTERING = FadeInDown.springify()
+  .damping(tokens.motion.spring.gentle.damping)
+  .stiffness(tokens.motion.spring.gentle.stiffness);
+const ACCORDION_CONTENT_EXITING = FadeOutUp.duration(tokens.motion.timing.fast);
+
+type AccordionChevronProps = {
+  expanded: boolean;
+  color: string;
+};
+
+const AccordionChevron = ({expanded, color}: AccordionChevronProps) => {
+  const rotation = useSharedValue(expanded ? 90 : 0);
+
+  React.useEffect(() => {
+    rotation.value = withSpring(expanded ? 90 : 0, tokens.motion.spring.snappy);
+  }, [expanded, rotation]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{rotateZ: `${rotation.value}deg`}],
+  }));
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Icon name="chevron-forward" size={16} color={color} />
+    </Animated.View>
+  );
 };
 
 export const ProjectsScreen = () => {
@@ -83,12 +107,6 @@ export const ProjectsScreen = () => {
     projectId: string;
     mode: 'trash' | 'permanent';
   } | null>(null);
-
-  React.useEffect(() => {
-    if (Platform.OS === 'android') {
-      UIManager.setLayoutAnimationEnabledExperimental?.(true);
-    }
-  }, []);
 
   const activeProjects = React.useMemo(
     () => projects.filter(project => !isProjectInTrash(project)),
@@ -346,7 +364,6 @@ export const ProjectsScreen = () => {
   );
 
   const toggleAccordion = React.useCallback((sectionId: string) => {
-    LayoutAnimation.configureNext(ACCORDION_SPRING_ANIMATION);
     setExpandedFolders(prev => ({
       ...prev,
       [sectionId]: !prev[sectionId],
@@ -444,15 +461,15 @@ export const ProjectsScreen = () => {
         [
           ...actions.map(action => ({
             text: action.title,
-            style: action.attributes?.destructive ? 'destructive' : 'default',
+            style: (action.attributes?.destructive ? 'destructive' : 'default') as AlertButton['style'],
             onPress: () => {
               if (action.id) {
                 handleFolderMenuAction(section, action.id);
               }
             },
           })),
-          {text: 'Cancel', style: 'cancel'},
-        ],
+          {text: 'Cancel', style: 'cancel' as AlertButton['style']},
+        ] satisfies AlertButton[],
       );
     },
     [folderActions, handleFolderMenuAction],
@@ -467,7 +484,7 @@ export const ProjectsScreen = () => {
         [
           ...actions.map(action => ({
             text: action.title,
-            style: action.attributes?.destructive ? 'destructive' : 'default',
+            style: (action.attributes?.destructive ? 'destructive' : 'default') as AlertButton['style'],
             onPress: () => {
               if (action.id === 'move_to_folder' && action.subactions?.length) {
                 Alert.alert(
@@ -482,7 +499,7 @@ export const ProjectsScreen = () => {
                         }
                       },
                     })),
-                    {text: 'Cancel', style: 'cancel'},
+                    {text: 'Cancel', style: 'cancel' as AlertButton['style']},
                   ],
                 );
                 return;
@@ -492,8 +509,8 @@ export const ProjectsScreen = () => {
               }
             },
           })),
-          {text: 'Cancel', style: 'cancel'},
-        ],
+          {text: 'Cancel', style: 'cancel' as AlertButton['style']},
+        ] satisfies AlertButton[],
       );
     },
     [handleProjectMenuAction, projectActions],
@@ -528,14 +545,14 @@ export const ProjectsScreen = () => {
       <View style={styles.accordionList}>
         {sections.map(section => {
           const expanded = expandedFolders[section.id] !== false;
+          const hasPendingDeleteItem = section.projects.some(
+            project => project.id === pendingDelete?.projectId,
+          );
+          const showSectionContent = expanded || hasPendingDeleteItem;
           const headerContent = (
             <View style={styles.accordionHeaderInner}>
               <View style={styles.accordionTitleWrap}>
-                <Icon
-                  name={expanded ? 'chevron-down' : 'chevron-forward'}
-                  size={16}
-                  color={theme.colors.textSecondary}
-                />
+                <AccordionChevron expanded={expanded} color={theme.colors.textSecondary} />
                 <Text style={[styles.accordionTitle, {color: theme.colors.textPrimary}]}>
                   {section.name}
                 </Text>
@@ -559,57 +576,64 @@ export const ProjectsScreen = () => {
           );
 
           return (
-            <View
+            <Animated.View
               key={section.id}
+              layout={ACCORDION_LAYOUT_TRANSITION}
               style={[styles.accordionCard, {borderColor: theme.colors.separator}]}>
               {accordionHeaderPressable}
 
-              {(expanded || section.projects.some(p => p.id === pendingDelete?.projectId)) ? (
-                section.projects.length ? (
-                  <View style={styles.grid}>
-                    {section.projects.map(project => {
-                      const isDeleting = pendingDelete?.projectId === project.id;
-                      if (!expanded && !isDeleting) {
-                        return null;
-                      }
-                      return (
-                        <View key={`${section.id}-${project.id}`} style={styles.gridItem}>
-                          <ProjectCard
-                            project={project}
-                            onPress={() => navigation.navigate('Preview', {projectId: project.id})}
-                            onLongPress={() => showProjectActions(project)}
-                            deleting={isDeleting}
-                            onDeleteAnimationEnd={() => {
-                              if (pendingDelete?.projectId !== project.id) {
-                                return;
+              {showSectionContent ? (
+                <Animated.View
+                  entering={ACCORDION_CONTENT_ENTERING}
+                  exiting={ACCORDION_CONTENT_EXITING}>
+                  {section.projects.length ? (
+                    <View style={styles.grid}>
+                      {section.projects.map(project => {
+                        const isDeleting = pendingDelete?.projectId === project.id;
+                        if (!expanded && !isDeleting) {
+                          return null;
+                        }
+                        return (
+                          <View key={`${section.id}-${project.id}`} style={styles.gridItem}>
+                            <ProjectCard
+                              project={project}
+                              onPress={() =>
+                                navigation.navigate('Preview', {projectId: project.id})
                               }
-                              const deleteMode = pendingDelete.mode;
-                              setPendingDelete(null);
-                              if (deleteMode === 'permanent') {
-                                removeProjectPermanently(project.id);
-                                return;
+                              onLongPress={() => showProjectActions(project)}
+                              deleting={isDeleting}
+                              onDeleteAnimationEnd={() => {
+                                if (pendingDelete?.projectId !== project.id) {
+                                  return;
+                                }
+                                const deleteMode = pendingDelete.mode;
+                                setPendingDelete(null);
+                                if (deleteMode === 'permanent') {
+                                  removeProjectPermanently(project.id);
+                                  return;
+                                }
+                                moveProjectToTrash(project.id);
+                              }}
+                              onToggleFavorite={() =>
+                                updateProject(project.id, {favorite: !project.favorite})
                               }
-                              moveProjectToTrash(project.id);
-                            }}
-                            onToggleFavorite={() =>
-                              updateProject(project.id, {favorite: !project.favorite})
-                            }
-                          />
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : (
-                  <View style={styles.emptyFolder}>
-                    <Text style={[styles.emptyFolderText, {color: theme.colors.textSecondary}]}>
-                      {section.kind === 'trash'
-                        ? 'Trash is empty.'
-                        : 'No projects in this folder yet.'}
-                    </Text>
-                  </View>
-                )
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyFolder}>
+                      <Text style={[styles.emptyFolderText, {color: theme.colors.textSecondary}]}>
+                        {section.kind === 'trash'
+                          ? 'Trash is empty.'
+                          : 'No projects in this folder yet.'}
+                      </Text>
+                    </View>
+                  )}
+                </Animated.View>
               ) : null}
-            </View>
+            </Animated.View>
           );
         })}
       </View>
@@ -654,6 +678,7 @@ const styles = StyleSheet.create({
   accordionCard: {
     borderWidth: 1,
     borderRadius: tokens.radius.m,
+    overflow: 'hidden',
   },
   accordionHeader: {
     minHeight: 48,
