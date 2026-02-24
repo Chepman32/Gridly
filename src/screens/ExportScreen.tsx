@@ -17,8 +17,10 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Export'>;
 
 export const ExportScreen = ({route}: Props) => {
   const theme = useAppTheme();
-  const projects = useAppStore(state =>
-    state.projects.filter(project => !isProjectInTrash(project)),
+  const allProjects = useAppStore(state => state.projects);
+  const projects = React.useMemo(
+    () => allProjects.filter(project => !isProjectInTrash(project)),
+    [allProjects],
   );
   const addBatch = useAppStore(state => state.addExportBatch);
   const project = React.useMemo(() => {
