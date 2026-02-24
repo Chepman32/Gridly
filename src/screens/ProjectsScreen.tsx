@@ -1,5 +1,5 @@
 import React from 'react';
-import {MenuView, type MenuAction} from '@react-native-menu/menu';
+import {type MenuAction} from '@react-native-menu/menu';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {CompositeNavigationProp, useNavigation} from '@react-navigation/native';
 import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
@@ -62,7 +62,6 @@ export const ProjectsScreen = () => {
   const [expandedFolders, setExpandedFolders] = React.useState<Record<string, boolean>>({
     [ALL_PROJECTS_FOLDER_ID]: true,
   });
-  const lastOpenedFolderMenuAt = React.useRef<Record<string, number>>({});
   const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
 
   const activeProjects = React.useMemo(
@@ -321,6 +320,13 @@ export const ProjectsScreen = () => {
     ],
   );
 
+  const toggleAccordion = React.useCallback((sectionId: string) => {
+    setExpandedFolders(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
+  }, []);
+
   const folderActions = React.useCallback((section: FolderSection): MenuAction[] => {
     if (section.kind === 'trash') {
       return [
@@ -400,12 +406,72 @@ export const ProjectsScreen = () => {
     [cleanTrash, folders, promptForText, removeFolder, renameFolder],
   );
 
-  const toggleAccordion = React.useCallback((sectionId: string) => {
-    setExpandedFolders(prev => ({
-      ...prev,
-      [sectionId]: !prev[sectionId],
-    }));
-  }, []);
+  const showFolderActions = React.useCallback(
+    (section: FolderSection) => {
+      const actions = folderActions(section);
+      if (!actions.length) {
+        return;
+      }
+      Alert.alert(
+        section.name,
+        undefined,
+        [
+          ...actions.map(action => ({
+            text: action.title,
+            style: action.attributes?.destructive ? 'destructive' : 'default',
+            onPress: () => {
+              if (action.id) {
+                handleFolderMenuAction(section, action.id);
+              }
+            },
+          })),
+          {text: 'Cancel', style: 'cancel'},
+        ],
+      );
+    },
+    [folderActions, handleFolderMenuAction],
+  );
+
+  const showProjectActions = React.useCallback(
+    (project: Project) => {
+      const actions = projectActions(project);
+      Alert.alert(
+        project.name,
+        undefined,
+        [
+          ...actions.map(action => ({
+            text: action.title,
+            style: action.attributes?.destructive ? 'destructive' : 'default',
+            onPress: () => {
+              if (action.id === 'move_to_folder' && action.subactions?.length) {
+                Alert.alert(
+                  'Move to Folder',
+                  undefined,
+                  [
+                    ...action.subactions.map(subaction => ({
+                      text: subaction.title,
+                      onPress: () => {
+                        if (subaction.id) {
+                          handleProjectMenuAction(project, subaction.id);
+                        }
+                      },
+                    })),
+                    {text: 'Cancel', style: 'cancel'},
+                  ],
+                );
+                return;
+              }
+              if (action.id) {
+                handleProjectMenuAction(project, action.id);
+              }
+            },
+          })),
+          {text: 'Cancel', style: 'cancel'},
+        ],
+      );
+    },
+    [handleProjectMenuAction, projectActions],
+  );
 
   return (
     <ScreenContainer
@@ -454,8 +520,14 @@ export const ProjectsScreen = () => {
             </View>
           );
 
-          const plainHeader = (
-            <Pressable onPress={() => toggleAccordion(section.id)} style={styles.accordionHeader}>
+          const accordionHeaderPressable = (
+            <Pressable
+              onPress={() => toggleAccordion(section.id)}
+              onLongPress={
+                section.kind === 'all' ? undefined : () => showFolderActions(section)
+              }
+              delayLongPress={280}
+              style={styles.accordionHeader}>
               {headerContent}
             </Pressable>
           );
@@ -464,68 +536,30 @@ export const ProjectsScreen = () => {
             <View
               key={section.id}
               style={[styles.accordionCard, {borderColor: theme.colors.separator}]}>
-              {isIos && section.kind !== 'all' ? (
-                <MenuView
-                  shouldOpenOnLongPress
-                  actions={folderActions(section)}
-                  onOpenMenu={() => {
-                    lastOpenedFolderMenuAt.current[section.id] = Date.now();
-                  }}
-                  onPressAction={({nativeEvent}) =>
-                    handleFolderMenuAction(section, nativeEvent.event)
-                  }>
-                  <View
-                    style={styles.accordionHeader}
-                    onStartShouldSetResponder={() => true}
-                    onResponderRelease={() => {
-                      const lastOpen = lastOpenedFolderMenuAt.current[section.id] ?? 0;
-                      if (Date.now() - lastOpen < 220) {
-                        return;
-                      }
-                      toggleAccordion(section.id);
-                    }}>
-                    {headerContent}
-                  </View>
-                </MenuView>
-              ) : (
-                plainHeader
-              )}
+              {accordionHeaderPressable}
 
               {expanded ? (
                 section.projects.length ? (
                   <View style={styles.grid}>
                     {section.projects.map(project => {
-                      const card = (
-                        <ProjectCard
-                          project={project}
-                          onPress={() => navigation.navigate('Editor', {projectId: project.id})}
-                          deleting={deletingProjectId === project.id}
-                          onDeleteAnimationEnd={() => {
-                            if (deletingProjectId !== project.id) {
-                              return;
-                            }
-                            setDeletingProjectId(null);
-                            moveProjectToTrash(project.id);
-                          }}
-                          onToggleFavorite={() =>
-                            updateProject(project.id, {favorite: !project.favorite})
-                          }
-                        />
-                      );
                       return (
                         <View key={`${section.id}-${project.id}`} style={styles.gridItem}>
-                          {isIos ? (
-                            <MenuView
-                              shouldOpenOnLongPress
-                              actions={projectActions(project)}
-                              onPressAction={({nativeEvent}) =>
-                                handleProjectMenuAction(project, nativeEvent.event)
-                              }>
-                              <View collapsable={false}>{card}</View>
-                            </MenuView>
-                          ) : (
-                            card
-                          )}
+                          <ProjectCard
+                            project={project}
+                            onPress={() => navigation.navigate('Preview', {projectId: project.id})}
+                            onLongPress={() => showProjectActions(project)}
+                            deleting={deletingProjectId === project.id}
+                            onDeleteAnimationEnd={() => {
+                              if (deletingProjectId !== project.id) {
+                                return;
+                              }
+                              setDeletingProjectId(null);
+                              moveProjectToTrash(project.id);
+                            }}
+                            onToggleFavorite={() =>
+                              updateProject(project.id, {favorite: !project.favorite})
+                            }
+                          />
                         </View>
                       );
                     })}
