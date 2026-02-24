@@ -16,7 +16,7 @@ import {resolveImageUri} from '../utils/imagePath';
 import {GRID_PRESETS, type GridPreset} from '../types/models';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
-type PreviewTab = 'Tiles' | 'Posting Order' | 'Simulation';
+type PreviewTab = 'Tiles' | 'Posting Order';
 
 const CANVAS_WIDTH = Dimensions.get('window').width - tokens.spacing.s2 * 2;
 
@@ -28,7 +28,7 @@ export const PreviewScreen = ({route, navigation}: Props) => {
   const customTemplates = useAppStore(state => state.customTemplates);
   const updateProject = useAppStore(state => state.updateProject);
   const [tab, setTab] = React.useState<PreviewTab>('Tiles');
-  const [showNumbers, setShowNumbers] = React.useState(true);
+  const [showNumbers, setShowNumbers] = React.useState(false);
 
   const panX = useSharedValue(0);
   const panY = useSharedValue(0);
@@ -84,7 +84,7 @@ export const PreviewScreen = ({route, navigation}: Props) => {
       </View>
 
       <SegmentedControl
-        options={['Tiles', 'Posting Order', 'Simulation']}
+        options={['Tiles', 'Posting Order']}
         selected={tab}
         onChange={value => setTab(value as PreviewTab)}
       />
@@ -137,19 +137,6 @@ export const PreviewScreen = ({route, navigation}: Props) => {
           </View>
         ) : null}
 
-        {tab === 'Simulation' ? (
-          <View style={[styles.simulation, {borderColor: theme.colors.separator}]}>
-            <Text style={[styles.simTitle, {color: theme.colors.textPrimary}]}>Profile Simulation</Text>
-            <Text style={[styles.caption, {color: theme.colors.textSecondary}]}>Neutral grid preview with final target composition orientation.</Text>
-            <View style={[styles.simGrid, {borderColor: theme.colors.separator}]}>
-              {Array.from({length: Math.min(9, tilePositions.length)}).map((_, idx) => (
-                <View key={idx} style={[styles.simCell, {borderColor: theme.colors.separator}]}>
-                  <Text style={{color: theme.colors.textSecondary}}>{idx + 1}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
       </ScrollView>
 
       <View style={styles.stickyBottom}>
@@ -235,6 +222,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tileLabelOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
     fontSize: 13,
     fontWeight: '600',
     color: 'white',
@@ -257,30 +247,6 @@ const styles = StyleSheet.create({
   },
   orderText: {
     ...tokens.typography.subhead,
-  },
-  simulation: {
-    marginTop: tokens.spacing.s2,
-    borderWidth: 1,
-    borderRadius: tokens.radius.l,
-    padding: tokens.spacing.s2,
-    gap: tokens.spacing.s1,
-  },
-  simTitle: {
-    ...tokens.typography.headline,
-  },
-  simGrid: {
-    borderWidth: 1,
-    borderRadius: 10,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    overflow: 'hidden',
-  },
-  simCell: {
-    width: '33.333%',
-    aspectRatio: 1,
-    borderWidth: 0.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   stickyBottom: {
     paddingTop: tokens.spacing.s2,
