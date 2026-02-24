@@ -3,7 +3,7 @@ import {Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View} from '
 import Animated, {useAnimatedStyle, useSharedValue} from 'react-native-reanimated';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import {ScreenContainer} from '../components/ScreenContainer';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import {SegmentedControl} from '../components/SegmentedControl';
 import {PrimaryButton} from '../components/PrimaryButton';
 import {PresetPicker} from '../components/PresetPicker';
@@ -36,6 +36,7 @@ export const PreviewScreen = ({route, navigation}: Props) => {
   const startY = useSharedValue(0);
 
   const panGesture = Gesture.Pan()
+    .minPointers(2)
     .onStart(() => {
       startX.value = panX.value;
       startY.value = panY.value;
@@ -54,9 +55,11 @@ export const PreviewScreen = ({route, navigation}: Props) => {
 
   if (!project) {
     return (
-      <ScreenContainer>
+      <SafeAreaView style={[styles.safe, {backgroundColor: theme.colors.background}]} edges={['left', 'right', 'bottom']}>
+        <View style={styles.content}>
         <Text style={{color: theme.colors.textPrimary}}>Project not found.</Text>
-      </ScreenContainer>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -69,7 +72,8 @@ export const PreviewScreen = ({route, navigation}: Props) => {
   const canvasHeight = (CANVAS_WIDTH * project.preset.rows) / project.preset.columns;
 
   return (
-    <ScreenContainer>
+    <SafeAreaView style={[styles.safe, {backgroundColor: theme.colors.background}]} edges={['left', 'right', 'bottom']}>
+      <View style={styles.content}>
       <View style={styles.header}>
         <Text style={[styles.title, {color: theme.colors.textPrimary}]}>Preview</Text>
         <PrimaryButton
@@ -85,101 +89,118 @@ export const PreviewScreen = ({route, navigation}: Props) => {
         onChange={value => setTab(value as PreviewTab)}
       />
 
-      {tab === 'Tiles' ? (
-        <GestureDetector gesture={panGesture}>
-          <View style={[styles.tileCanvas, {height: canvasHeight}]}>
-            <Animated.View style={[StyleSheet.absoluteFill, imageAnimStyle]}>
-              <Image
-                source={{uri: resolveImageUri(project.imageUri)}}
-                style={StyleSheet.absoluteFill}
-                resizeMode="cover"
-              />
-            </Animated.View>
-            {tilePositions.map(tile => (
-              <View
-                key={tile.index}
-                style={[
-                  styles.tileCell,
-                  {
-                    left: `${((tile.column - 1) / project.preset.columns) * 100}%`,
-                    top: `${((tile.row - 1) / project.preset.rows) * 100}%`,
-                    width: `${(1 / project.preset.columns) * 100}%`,
-                    height: `${(1 / project.preset.rows) * 100}%`,
-                  },
-                ]}>
-                {showNumbers ? (
-                  <Text style={styles.tileLabelOverlay}>{tile.index}</Text>
-                ) : null}
-              </View>
-            ))}
-          </View>
-        </GestureDetector>
-      ) : null}
-
-      {tab === 'Posting Order' ? (
-        <ScrollView contentContainerStyle={styles.orderList}>
-          <Text style={[styles.caption, {color: theme.colors.textSecondary}]}>Post from bottom-right to top-left to rebuild the final mosaic correctly.</Text>
-          {postingOrder.map((tile, index) => (
-            <View
-              key={tile}
-              style={[styles.orderRow, {borderColor: theme.colors.separator}]}>
-              <Text style={[styles.orderText, {color: theme.colors.textPrimary}]}>Step {index + 1}: Post tile {tile}</Text>
+      <ScrollView
+        style={styles.bodyScroll}
+        contentContainerStyle={styles.bodyScrollContent}
+        showsVerticalScrollIndicator={false}>
+        {tab === 'Tiles' ? (
+          <GestureDetector gesture={panGesture}>
+            <View style={[styles.tileCanvas, {height: canvasHeight}]}>
+              <Animated.View style={[StyleSheet.absoluteFill, imageAnimStyle]}>
+                <Image
+                  source={{uri: resolveImageUri(project.imageUri)}}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+              </Animated.View>
+              {tilePositions.map(tile => (
+                <View
+                  key={tile.index}
+                  style={[
+                    styles.tileCell,
+                    {
+                      left: `${((tile.column - 1) / project.preset.columns) * 100}%`,
+                      top: `${((tile.row - 1) / project.preset.rows) * 100}%`,
+                      width: `${(1 / project.preset.columns) * 100}%`,
+                      height: `${(1 / project.preset.rows) * 100}%`,
+                    },
+                  ]}>
+                  {showNumbers ? (
+                    <Text style={styles.tileLabelOverlay}>{tile.index}</Text>
+                  ) : null}
+                </View>
+              ))}
             </View>
-          ))}
-        </ScrollView>
-      ) : null}
+          </GestureDetector>
+        ) : null}
 
-      {tab === 'Simulation' ? (
-        <View style={[styles.simulation, {borderColor: theme.colors.separator}]}>
-          <Text style={[styles.simTitle, {color: theme.colors.textPrimary}]}>Profile Simulation</Text>
-          <Text style={[styles.caption, {color: theme.colors.textSecondary}]}>Neutral grid preview with final target composition orientation.</Text>
-          <View style={[styles.simGrid, {borderColor: theme.colors.separator}]}>
-            {Array.from({length: Math.min(9, tilePositions.length)}).map((_, idx) => (
-              <View key={idx} style={[styles.simCell, {borderColor: theme.colors.separator}]}>
-                <Text style={{color: theme.colors.textSecondary}}>{idx + 1}</Text>
+        {tab === 'Posting Order' ? (
+          <View style={styles.orderList}>
+            <Text style={[styles.caption, {color: theme.colors.textSecondary}]}>Post from bottom-right to top-left to rebuild the final mosaic correctly.</Text>
+            {postingOrder.map((tile, index) => (
+              <View
+                key={tile}
+                style={[styles.orderRow, {borderColor: theme.colors.separator}]}>
+                <Text style={[styles.orderText, {color: theme.colors.textPrimary}]}>Step {index + 1}: Post tile {tile}</Text>
               </View>
             ))}
           </View>
-        </View>
-      ) : null}
+        ) : null}
 
-      <View style={styles.sectionGap}>
-        <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>Preset</Text>
-        <PresetPicker
-          presets={GRID_PRESETS}
-          selected={project.preset}
-          onSelect={handlePresetSelect}
-        />
-      </View>
+        {tab === 'Simulation' ? (
+          <View style={[styles.simulation, {borderColor: theme.colors.separator}]}>
+            <Text style={[styles.simTitle, {color: theme.colors.textPrimary}]}>Profile Simulation</Text>
+            <Text style={[styles.caption, {color: theme.colors.textSecondary}]}>Neutral grid preview with final target composition orientation.</Text>
+            <View style={[styles.simGrid, {borderColor: theme.colors.separator}]}>
+              {Array.from({length: Math.min(9, tilePositions.length)}).map((_, idx) => (
+                <View key={idx} style={[styles.simCell, {borderColor: theme.colors.separator}]}>
+                  <Text style={{color: theme.colors.textSecondary}}>{idx + 1}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
 
-      <View style={styles.customSectionGap}>
-        <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>
-          Custom Templates
-        </Text>
-        {customTemplates.length ? (
+      <View style={styles.stickyBottom}>
+        <View style={styles.sectionGap}>
+          <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>Preset</Text>
           <PresetPicker
-            presets={customTemplates}
+            presets={GRID_PRESETS}
             selected={project.preset}
             onSelect={handlePresetSelect}
           />
-        ) : (
-          <Text style={[styles.emptyCustomText, {color: theme.colors.textSecondary}]}>
-            No custom templates yet.
-          </Text>
-        )}
-      </View>
+        </View>
 
-      <Pressable
-        onPress={() => setShowNumbers(current => !current)}
-        style={[styles.toggleRow, {borderColor: theme.colors.separator}]}>
-        <Text style={[styles.toggleText, {color: theme.colors.textPrimary}]}>Number overlays</Text>
-        <Text style={[styles.toggleText, {color: theme.colors.textSecondary}]}>{showNumbers ? 'On' : 'Off'}</Text>
-      </Pressable>
-    </ScreenContainer>
+        <View style={styles.customSectionGap}>
+          <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>
+            Custom Templates
+          </Text>
+          {customTemplates.length ? (
+            <PresetPicker
+              presets={customTemplates}
+              selected={project.preset}
+              onSelect={handlePresetSelect}
+            />
+          ) : (
+            <Text style={[styles.emptyCustomText, {color: theme.colors.textSecondary}]}>
+              No custom templates yet.
+            </Text>
+          )}
+        </View>
+
+        <Pressable
+          onPress={() => setShowNumbers(current => !current)}
+          style={[styles.toggleRow, {borderColor: theme.colors.separator}]}>
+          <Text style={[styles.toggleText, {color: theme.colors.textPrimary}]}>Number overlays</Text>
+          <Text style={[styles.toggleText, {color: theme.colors.textSecondary}]}>{showNumbers ? 'On' : 'Off'}</Text>
+        </Pressable>
+      </View>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: tokens.spacing.s2,
+    paddingTop: tokens.spacing.s1,
+    paddingBottom: tokens.spacing.s2,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -192,6 +213,12 @@ const styles = StyleSheet.create({
   },
   exportBtn: {
     width: 120,
+  },
+  bodyScroll: {
+    flex: 1,
+  },
+  bodyScrollContent: {
+    paddingBottom: tokens.spacing.s1,
   },
   tileCanvas: {
     marginTop: tokens.spacing.s2,
@@ -255,12 +282,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  stickyBottom: {
+    paddingTop: tokens.spacing.s2,
+    gap: tokens.spacing.s1,
+  },
   sectionGap: {
-    marginTop: tokens.spacing.s2,
     gap: tokens.spacing.s1,
   },
   customSectionGap: {
-    marginTop: tokens.spacing.s1,
     gap: tokens.spacing.s1,
   },
   sectionTitle: {
@@ -270,7 +299,6 @@ const styles = StyleSheet.create({
     ...tokens.typography.subhead,
   },
   toggleRow: {
-    marginTop: tokens.spacing.s2,
     borderWidth: 1,
     borderRadius: 10,
     minHeight: 44,
