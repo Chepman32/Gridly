@@ -49,12 +49,14 @@ type FolderSection = {
 };
 
 type MenuViewWithTouchProps = React.ComponentProps<typeof MenuView> &
-  Pick<ViewProps, 'onTouchStart' | 'onTouchEnd' | 'onTouchCancel'>;
+  Pick<ViewProps, 'onLayout' | 'onTouchStart' | 'onTouchEnd' | 'onTouchCancel'>;
 const MenuViewWithTouch = MenuView as unknown as React.ComponentType<MenuViewWithTouchProps>;
 
 const isIos = Platform.OS === 'ios';
 const MOVE_TO_FOLDER_PREFIX = 'move_to_folder:';
 const HEADER_TAP_MAX_DURATION_MS = 220;
+const PROJECT_STAR_HITBOX_SIZE = 32;
+const PROJECT_STAR_HITBOX_INSET = tokens.spacing.s1;
 const ACCORDION_LAYOUT_TRANSITION = LinearTransition.springify()
   .damping(tokens.motion.spring.standard.damping + 12)
   .stiffness(tokens.motion.spring.standard.stiffness)
@@ -113,6 +115,8 @@ export const ProjectsScreen = () => {
     mode: 'trash' | 'permanent';
   } | null>(null);
   const folderHeaderTouchStartAt = React.useRef<Record<string, number>>({});
+  const projectCardTouchStartAt = React.useRef<Record<string, number>>({});
+  const projectCardWidths = React.useRef<Record<string, number>>({});
 
   const activeProjects = React.useMemo(
     () => projects.filter(project => !isProjectInTrash(project)),
@@ -193,6 +197,13 @@ export const ProjectsScreen = () => {
   const openCreateTab = React.useCallback(() => {
     navigation.navigate('Create');
   }, [navigation]);
+
+  const openProjectEditor = React.useCallback(
+    (projectId: string) => {
+      navigation.navigate('Editor', {projectId});
+    },
+    [navigation],
+  );
 
   const promptForText = React.useCallback(
     (
@@ -367,6 +378,26 @@ export const ProjectsScreen = () => {
       recoverProject,
       renameProject,
     ],
+  );
+
+  const handleProjectQuickTap = React.useCallback(
+    (project: Project, locationX: number, locationY: number) => {
+      const cardWidth = projectCardWidths.current[project.id];
+      if (typeof cardWidth === 'number') {
+        const minX = cardWidth - PROJECT_STAR_HITBOX_INSET - PROJECT_STAR_HITBOX_SIZE;
+        const maxX = cardWidth - PROJECT_STAR_HITBOX_INSET;
+        const minY = PROJECT_STAR_HITBOX_INSET;
+        const maxY = PROJECT_STAR_HITBOX_INSET + PROJECT_STAR_HITBOX_SIZE;
+        const isFavoriteHit =
+          locationX >= minX && locationX <= maxX && locationY >= minY && locationY <= maxY;
+        if (isFavoriteHit) {
+          updateProject(project.id, {favorite: !project.favorite});
+          return;
+        }
+      }
+      openProjectEditor(project.id);
+    },
+    [openProjectEditor, updateProject],
   );
 
   const toggleAccordion = React.useCallback((sectionId: string) => {
@@ -564,9 +595,7 @@ export const ProjectsScreen = () => {
                         const card = (
                           <ProjectCard
                             project={project}
-                            onPress={() =>
-                              navigation.navigate('Preview', {projectId: project.id})
-                            }
+                            onPress={() => openProjectEditor(project.id)}
                             deleting={isDeleting}
                             onDeleteAnimationEnd={() => {
                               if (pendingDelete?.projectId !== project.id) {
@@ -587,17 +616,49 @@ export const ProjectsScreen = () => {
                         );
                         return (
                           <View key={`${section.id}-${project.id}`} style={styles.gridItem}>
-                            <MenuView
+                            <MenuViewWithTouch
                               title={project.name}
                               actions={actions}
                               shouldOpenOnLongPress
+                              onLayout={({nativeEvent}) => {
+                                projectCardWidths.current[project.id] = nativeEvent.layout.width;
+                              }}
+                              onTouchStart={() => {
+                                if (!isIos) {
+                                  return;
+                                }
+                                projectCardTouchStartAt.current[project.id] = Date.now();
+                              }}
+                              onTouchEnd={({nativeEvent}) => {
+                                if (!isIos) {
+                                  return;
+                                }
+                                const startedAt = projectCardTouchStartAt.current[project.id];
+                                delete projectCardTouchStartAt.current[project.id];
+                                if (!startedAt) {
+                                  return;
+                                }
+                                if (Date.now() - startedAt <= HEADER_TAP_MAX_DURATION_MS) {
+                                  handleProjectQuickTap(
+                                    project,
+                                    nativeEvent.locationX,
+                                    nativeEvent.locationY,
+                                  );
+                                }
+                              }}
+                              onTouchCancel={() => {
+                                if (!isIos) {
+                                  return;
+                                }
+                                delete projectCardTouchStartAt.current[project.id];
+                              }}
                               onPressAction={({nativeEvent}) => {
                                 if (nativeEvent.event) {
                                   handleProjectMenuAction(project, nativeEvent.event);
                                 }
                               }}>
                               {card}
-                            </MenuView>
+                            </MenuViewWithTouch>
                           </View>
                         );
                       })}
