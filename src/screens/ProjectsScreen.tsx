@@ -1,15 +1,15 @@
 import React from 'react';
-import {type MenuAction} from '@react-native-menu/menu';
+import {MenuView, type MenuAction} from '@react-native-menu/menu';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {CompositeNavigationProp, useNavigation} from '@react-navigation/native';
 import {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import {
   Alert,
-  type AlertButton,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  type ViewProps,
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -48,8 +48,13 @@ type FolderSection = {
   projects: Project[];
 };
 
+type MenuViewWithTouchProps = React.ComponentProps<typeof MenuView> &
+  Pick<ViewProps, 'onTouchStart' | 'onTouchEnd' | 'onTouchCancel'>;
+const MenuViewWithTouch = MenuView as unknown as React.ComponentType<MenuViewWithTouchProps>;
+
 const isIos = Platform.OS === 'ios';
 const MOVE_TO_FOLDER_PREFIX = 'move_to_folder:';
+const HEADER_TAP_MAX_DURATION_MS = 220;
 const ACCORDION_LAYOUT_TRANSITION = LinearTransition.springify()
   .damping(tokens.motion.spring.standard.damping + 12)
   .stiffness(tokens.motion.spring.standard.stiffness)
@@ -107,6 +112,7 @@ export const ProjectsScreen = () => {
     projectId: string;
     mode: 'trash' | 'permanent';
   } | null>(null);
+  const folderHeaderTouchStartAt = React.useRef<Record<string, number>>({});
 
   const activeProjects = React.useMemo(
     () => projects.filter(project => !isProjectInTrash(project)),
@@ -449,73 +455,6 @@ export const ProjectsScreen = () => {
     [cleanTrash, folders, promptForText, removeFolder, renameFolder],
   );
 
-  const showFolderActions = React.useCallback(
-    (section: FolderSection) => {
-      const actions = folderActions(section);
-      if (!actions.length) {
-        return;
-      }
-      Alert.alert(
-        section.name,
-        undefined,
-        [
-          ...actions.map(action => ({
-            text: action.title,
-            style: (action.attributes?.destructive ? 'destructive' : 'default') as AlertButton['style'],
-            onPress: () => {
-              if (action.id) {
-                handleFolderMenuAction(section, action.id);
-              }
-            },
-          })),
-          {text: 'Cancel', style: 'cancel' as AlertButton['style']},
-        ] satisfies AlertButton[],
-      );
-    },
-    [folderActions, handleFolderMenuAction],
-  );
-
-  const showProjectActions = React.useCallback(
-    (project: Project) => {
-      const actions = projectActions(project);
-      Alert.alert(
-        project.name,
-        undefined,
-        [
-          ...actions.map(action => ({
-            text: action.title,
-            style: (action.attributes?.destructive ? 'destructive' : 'default') as AlertButton['style'],
-            onPress: () => {
-              if (action.id === 'move_to_folder' && action.subactions?.length) {
-                Alert.alert(
-                  'Move to Folder',
-                  undefined,
-                  [
-                    ...action.subactions.map(subaction => ({
-                      text: subaction.title,
-                      onPress: () => {
-                        if (subaction.id) {
-                          handleProjectMenuAction(project, subaction.id);
-                        }
-                      },
-                    })),
-                    {text: 'Cancel', style: 'cancel' as AlertButton['style']},
-                  ],
-                );
-                return;
-              }
-              if (action.id) {
-                handleProjectMenuAction(project, action.id);
-              }
-            },
-          })),
-          {text: 'Cancel', style: 'cancel' as AlertButton['style']},
-        ] satisfies AlertButton[],
-      );
-    },
-    [handleProjectMenuAction, projectActions],
-  );
-
   return (
     <ScreenContainer
       scroll
@@ -564,15 +503,43 @@ export const ProjectsScreen = () => {
           );
 
           const accordionHeaderPressable = (
-            <Pressable
-              onPress={() => toggleAccordion(section.id)}
-              onLongPress={
-                section.kind === 'all' ? undefined : () => showFolderActions(section)
-              }
-              delayLongPress={280}
-              style={styles.accordionHeader}>
+            <Pressable onPress={() => toggleAccordion(section.id)} style={styles.accordionHeader}>
               {headerContent}
             </Pressable>
+          );
+          const accordionHeaderStatic = <View style={styles.accordionHeader}>{headerContent}</View>;
+
+          const sectionActions = folderActions(section);
+          const accordionHeader = sectionActions.length ? (
+            <MenuViewWithTouch
+              title={section.name}
+              actions={sectionActions}
+              shouldOpenOnLongPress
+              onTouchStart={() => {
+                folderHeaderTouchStartAt.current[section.id] = Date.now();
+              }}
+              onTouchEnd={() => {
+                const startedAt = folderHeaderTouchStartAt.current[section.id];
+                delete folderHeaderTouchStartAt.current[section.id];
+                if (!startedAt) {
+                  return;
+                }
+                if (Date.now() - startedAt <= HEADER_TAP_MAX_DURATION_MS) {
+                  toggleAccordion(section.id);
+                }
+              }}
+              onTouchCancel={() => {
+                delete folderHeaderTouchStartAt.current[section.id];
+              }}
+              onPressAction={({nativeEvent}) => {
+                if (nativeEvent.event) {
+                  handleFolderMenuAction(section, nativeEvent.event);
+                }
+              }}>
+              {accordionHeaderStatic}
+            </MenuViewWithTouch>
+          ) : (
+            accordionHeaderPressable
           );
 
           return (
@@ -580,7 +547,7 @@ export const ProjectsScreen = () => {
               key={section.id}
               layout={ACCORDION_LAYOUT_TRANSITION}
               style={[styles.accordionCard, {borderColor: theme.colors.separator}]}>
-              {accordionHeaderPressable}
+              {accordionHeader}
 
               {showSectionContent ? (
                 <Animated.View
@@ -593,31 +560,44 @@ export const ProjectsScreen = () => {
                         if (!expanded && !isDeleting) {
                           return null;
                         }
+                        const actions = projectActions(project);
+                        const card = (
+                          <ProjectCard
+                            project={project}
+                            onPress={() =>
+                              navigation.navigate('Preview', {projectId: project.id})
+                            }
+                            deleting={isDeleting}
+                            onDeleteAnimationEnd={() => {
+                              if (pendingDelete?.projectId !== project.id) {
+                                return;
+                              }
+                              const deleteMode = pendingDelete.mode;
+                              setPendingDelete(null);
+                              if (deleteMode === 'permanent') {
+                                removeProjectPermanently(project.id);
+                                return;
+                              }
+                              moveProjectToTrash(project.id);
+                            }}
+                            onToggleFavorite={() =>
+                              updateProject(project.id, {favorite: !project.favorite})
+                            }
+                          />
+                        );
                         return (
                           <View key={`${section.id}-${project.id}`} style={styles.gridItem}>
-                            <ProjectCard
-                              project={project}
-                              onPress={() =>
-                                navigation.navigate('Preview', {projectId: project.id})
-                              }
-                              onLongPress={() => showProjectActions(project)}
-                              deleting={isDeleting}
-                              onDeleteAnimationEnd={() => {
-                                if (pendingDelete?.projectId !== project.id) {
-                                  return;
+                            <MenuView
+                              title={project.name}
+                              actions={actions}
+                              shouldOpenOnLongPress
+                              onPressAction={({nativeEvent}) => {
+                                if (nativeEvent.event) {
+                                  handleProjectMenuAction(project, nativeEvent.event);
                                 }
-                                const deleteMode = pendingDelete.mode;
-                                setPendingDelete(null);
-                                if (deleteMode === 'permanent') {
-                                  removeProjectPermanently(project.id);
-                                  return;
-                                }
-                                moveProjectToTrash(project.id);
-                              }}
-                              onToggleFavorite={() =>
-                                updateProject(project.id, {favorite: !project.favorite})
-                              }
-                            />
+                              }}>
+                              {card}
+                            </MenuView>
                           </View>
                         );
                       })}
