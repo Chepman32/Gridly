@@ -15,12 +15,19 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export const ExportHubScreen = () => {
   const theme = useAppTheme();
   const navigation = useNavigation<Nav>();
-  const batches = useAppStore(state =>
-    state.projects
-      .filter(project => !isProjectInTrash(project))
-      .flatMap(project =>
-        project.exports.map(batch => ({batch, projectName: project.name, projectId: project.id})),
-      ),
+  const projects = useAppStore(state => state.projects);
+  const batches = React.useMemo(
+    () =>
+      projects
+        .filter(project => !isProjectInTrash(project))
+        .flatMap(project =>
+          project.exports.map(batch => ({
+            batch,
+            projectName: project.name,
+            projectId: project.id,
+          })),
+        ),
+    [projects],
   );
 
   return (
