@@ -27,7 +27,7 @@ import {useAppStore} from '../state/useAppStore';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {DEFAULT_PRESET, DEFAULT_TRANSFORM, GRID_PRESETS} from '../types/models';
-import {getFillTransform, getFitTransform, snapToZero} from '../utils/imageMath';
+import {getFillTransform, snapToZero} from '../utils/imageMath';
 import {resolveImageUri} from '../utils/imagePath';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Editor'>;
@@ -35,6 +35,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Editor'>;
 const MAX_SCALE = 4;
 const MIN_SCALE = 1;
 const FALLBACK_IMAGE_SIZE = {width: 1, height: 1};
+const DEFAULT_FILL_SCALE = getFillTransform().scale;
 
 export const EditorScreen = ({route, navigation}: Props) => {
   const theme = useAppTheme();
@@ -62,11 +63,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
     } as const);
 
   const [isInteracting, setInteracting] = React.useState(false);
-  const [seamInspect, setSeamInspect] = React.useState(false);
   const [imageSize, setImageSize] = React.useState(FALLBACK_IMAGE_SIZE);
-
-  const historyRef = React.useRef([safeProject.transform]);
-  const historyIndexRef = React.useRef(0);
 
   const translateX = useSharedValue(safeProject.transform.x);
   const translateY = useSharedValue(safeProject.transform.y);
@@ -177,18 +174,29 @@ export const EditorScreen = ({route, navigation}: Props) => {
     updateProject,
   ]);
 
+  React.useEffect(() => {
+    if (!project) {
+      return;
+    }
+    const needsFillMode = project.transform.fitMode !== 'fill';
+    const needsFillScale = project.transform.scale < DEFAULT_FILL_SCALE;
+    if (!needsFillMode && !needsFillScale) {
+      return;
+    }
+    void updateProject(project.id, {
+      transform: {
+        ...project.transform,
+        fitMode: 'fill',
+        scale: Math.max(project.transform.scale, DEFAULT_FILL_SCALE),
+      },
+    });
+  }, [project, updateProject]);
+
   const updateInteractionState = (active: boolean) => {
     setInteracting(active);
     controlsOpacity.value = withTiming(active ? 0.25 : 1, {
       duration: tokens.motion.timing.fast,
     });
-  };
-
-  const pushHistory = (nextTransform: typeof safeProject.transform) => {
-    const stack = historyRef.current.slice(0, historyIndexRef.current + 1);
-    stack.push(nextTransform);
-    historyRef.current = stack;
-    historyIndexRef.current = stack.length - 1;
   };
 
   const saveTransform = () => {
@@ -206,35 +214,6 @@ export const EditorScreen = ({route, navigation}: Props) => {
         rotation: rotation.value,
       },
     });
-  };
-
-  const applyTransform = (transform: typeof safeProject.transform) => {
-    const safeScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, transform.scale));
-    const clamped = clampTranslation(transform.x, transform.y, safeScale);
-    translateX.value = clamped.x;
-    translateY.value = clamped.y;
-    scale.value = safeScale;
-    rotation.value = transform.rotation;
-  };
-
-  const undo = () => {
-    if (historyIndexRef.current === 0) {
-      return;
-    }
-    historyIndexRef.current -= 1;
-    const transform = historyRef.current[historyIndexRef.current];
-    applyTransform(transform);
-    void updateProject(projectId, {transform});
-  };
-
-  const redo = () => {
-    if (historyIndexRef.current >= historyRef.current.length - 1) {
-      return;
-    }
-    historyIndexRef.current += 1;
-    const transform = historyRef.current[historyIndexRef.current];
-    applyTransform(transform);
-    void updateProject(projectId, {transform});
   };
 
   const panGesture = Gesture.Pan()
@@ -255,13 +234,6 @@ export const EditorScreen = ({route, navigation}: Props) => {
       translateX.value = clamped.x;
       translateY.value = clamped.y;
       runOnJS(updateInteractionState)(false);
-      runOnJS(pushHistory)({
-        ...safeProject.transform,
-        x: translateX.value,
-        y: translateY.value,
-        scale: scale.value,
-        rotation: rotation.value,
-      });
       runOnJS(saveTransform)();
     });
 
@@ -285,13 +257,6 @@ export const EditorScreen = ({route, navigation}: Props) => {
       translateX.value = clamped.x;
       translateY.value = clamped.y;
       runOnJS(updateInteractionState)(false);
-      runOnJS(pushHistory)({
-        ...safeProject.transform,
-        x: translateX.value,
-        y: translateY.value,
-        scale: scale.value,
-        rotation: rotation.value,
-      });
       runOnJS(saveTransform)();
     });
 
@@ -302,24 +267,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
     rotation.value = snapToZero((rotation.value + (event.rotation * 180) / Math.PI) % 360);
   });
 
-  const doubleTap = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd(() => {
-      const next = safeProject.transform.fitMode === 'fit' ? getFillTransform() : getFitTransform();
-      runOnJS(updateProject)(projectId, {
-        transform: next,
-      });
-      scale.value = next.scale;
-      translateX.value = 0;
-      translateY.value = 0;
-      rotation.value = next.rotation;
-    });
-
-  const gesture = Gesture.Simultaneous(
-    Gesture.Race(doubleTap, panGesture),
-    pinchGesture,
-    rotateGesture,
-  );
+  const gesture = Gesture.Simultaneous(panGesture, pinchGesture, rotateGesture);
 
   const panStyle = useAnimatedStyle(() => ({
     transform: [{translateX: translateX.value}, {translateY: translateY.value}],
@@ -356,14 +304,6 @@ export const EditorScreen = ({route, navigation}: Props) => {
             {project.name}
           </Text>
         </Pressable>
-        <View style={styles.undoRow}>
-          <Pressable onPress={undo} style={styles.topBtn}>
-            <Text style={[styles.topBtnText, {color: theme.colors.textSecondary}]}>Undo</Text>
-          </Pressable>
-          <Pressable onPress={redo} style={styles.topBtn}>
-            <Text style={[styles.topBtnText, {color: theme.colors.textSecondary}]}>Redo</Text>
-          </Pressable>
-        </View>
       </View>
 
       <ScrollView
@@ -396,7 +336,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
             <GridOverlayCanvas
               rows={project.preset.rows}
               columns={project.preset.columns}
-              strong={seamInspect || isInteracting}
+              strong={isInteracting}
             />
           </View>
         </GestureDetector>
@@ -421,35 +361,6 @@ export const EditorScreen = ({route, navigation}: Props) => {
             No custom templates yet.
           </Text>
         )}
-
-        <View style={styles.quickControls}>
-          <Pressable
-            style={[styles.chip, {borderColor: theme.colors.separator}]}
-            onPress={() =>
-              updateProject(projectId, {
-                transform:
-                  safeProject.transform.fitMode === 'fit'
-                    ? getFillTransform()
-                    : getFitTransform(),
-              })
-            }>
-            <Text style={[styles.chipLabel, {color: theme.colors.textPrimary}]}>Fit / Fill</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.chip, {borderColor: theme.colors.separator}]}
-            onPress={() =>
-              updateProject(projectId, {
-                rotationEnabled: !safeProject.rotationEnabled,
-              })
-            }>
-            <Text style={[styles.chipLabel, {color: theme.colors.textPrimary}]}>Lock Rot</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.chip, {borderColor: theme.colors.separator}]}
-            onPress={() => setSeamInspect(current => !current)}>
-            <Text style={[styles.chipLabel, {color: theme.colors.textPrimary}]}>Seam Inspect</Text>
-          </Pressable>
-        </View>
 
         <View style={styles.bottomRow}>
           <Pressable
@@ -495,27 +406,13 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     paddingHorizontal: tokens.spacing.s2,
     paddingVertical: tokens.spacing.s1,
-    gap: tokens.spacing.s2,
-  },
-  topBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  topBtnText: {
-    ...tokens.typography.callout,
-    fontWeight: '600',
   },
   projectName: {
     ...tokens.typography.headline,
     maxWidth: 140,
-  },
-  undoRow: {
-    flexDirection: 'row',
-    gap: 6,
   },
   canvas: {
     marginHorizontal: tokens.spacing.s2,
@@ -543,18 +440,6 @@ const styles = StyleSheet.create({
   },
   emptyCustomText: {
     ...tokens.typography.subhead,
-  },
-  quickControls: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    minHeight: 40,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   chipLabel: {
     ...tokens.typography.caption2,

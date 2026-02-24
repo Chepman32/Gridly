@@ -76,7 +76,7 @@ export const GRID_PRESETS: GridPreset[] = [
 export const DEFAULT_PRESET = GRID_PRESETS[1];
 
 export const DEFAULT_TRANSFORM: CropTransform = {
-  scale: 1,
+  scale: 1.08,
   x: 0,
   y: 0,
   rotation: 0,
