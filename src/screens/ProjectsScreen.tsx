@@ -55,8 +55,6 @@ const MenuViewWithTouch = MenuView as unknown as React.ComponentType<MenuViewWit
 const isIos = Platform.OS === 'ios';
 const MOVE_TO_FOLDER_PREFIX = 'move_to_folder:';
 const HEADER_TAP_MAX_DURATION_MS = 220;
-const PROJECT_STAR_HITBOX_SIZE = 32;
-const PROJECT_STAR_HITBOX_INSET = tokens.spacing.s1;
 const ACCORDION_LAYOUT_TRANSITION = LinearTransition.springify()
   .damping(tokens.motion.spring.standard.damping + 12)
   .stiffness(tokens.motion.spring.standard.stiffness)
@@ -95,7 +93,6 @@ export const ProjectsScreen = () => {
   const navigation = useNavigation<Nav>();
   const projects = useAppStore(state => state.projects);
   const folders = useAppStore(state => state.folders);
-  const updateProject = useAppStore(state => state.updateProject);
   const renameProject = useAppStore(state => state.renameProject);
   const duplicateProject = useAppStore(state => state.duplicateProject);
   const moveProjectToTrash = useAppStore(state => state.moveProjectToTrash);
@@ -116,7 +113,6 @@ export const ProjectsScreen = () => {
   } | null>(null);
   const folderHeaderTouchStartAt = React.useRef<Record<string, number>>({});
   const projectCardTouchStartAt = React.useRef<Record<string, number>>({});
-  const projectCardWidths = React.useRef<Record<string, number>>({});
 
   const activeProjects = React.useMemo(
     () => projects.filter(project => !isProjectInTrash(project)),
@@ -381,23 +377,10 @@ export const ProjectsScreen = () => {
   );
 
   const handleProjectQuickTap = React.useCallback(
-    (project: Project, locationX: number, locationY: number) => {
-      const cardWidth = projectCardWidths.current[project.id];
-      if (typeof cardWidth === 'number') {
-        const minX = cardWidth - PROJECT_STAR_HITBOX_INSET - PROJECT_STAR_HITBOX_SIZE;
-        const maxX = cardWidth - PROJECT_STAR_HITBOX_INSET;
-        const minY = PROJECT_STAR_HITBOX_INSET;
-        const maxY = PROJECT_STAR_HITBOX_INSET + PROJECT_STAR_HITBOX_SIZE;
-        const isFavoriteHit =
-          locationX >= minX && locationX <= maxX && locationY >= minY && locationY <= maxY;
-        if (isFavoriteHit) {
-          updateProject(project.id, {favorite: !project.favorite});
-          return;
-        }
-      }
+    (project: Project, _locationX: number, _locationY: number) => {
       openProjectEditor(project.id);
     },
-    [openProjectEditor, updateProject],
+    [openProjectEditor],
   );
 
   const toggleAccordion = React.useCallback((sectionId: string) => {
@@ -498,11 +481,6 @@ export const ProjectsScreen = () => {
       }>
       <View style={styles.headerRow}>
         <Text style={[styles.title, {color: theme.colors.textPrimary}]}>Projects</Text>
-        <View style={styles.headerActions}>
-          <Pressable accessibilityLabel="Settings" style={styles.iconBtn}>
-            <Icon name="settings-outline" size={22} color={theme.colors.textPrimary} />
-          </Pressable>
-        </View>
       </View>
 
       <View style={styles.accordionList}>
@@ -599,9 +577,6 @@ export const ProjectsScreen = () => {
                               }
                               moveProjectToTrash(project.id);
                             }}
-                            onToggleFavorite={() =>
-                              updateProject(project.id, {favorite: !project.favorite})
-                            }
                           />
                         );
                         return (
@@ -610,9 +585,6 @@ export const ProjectsScreen = () => {
                               title={project.name}
                               actions={actions}
                               shouldOpenOnLongPress
-                              onLayout={({nativeEvent}) => {
-                                projectCardWidths.current[project.id] = nativeEvent.layout.width;
-                              }}
                               onTouchStart={() => {
                                 if (!isIos) {
                                   return;
@@ -676,23 +648,11 @@ export const ProjectsScreen = () => {
 const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: tokens.spacing.s1,
   },
   title: {
     ...tokens.typography.title1,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: tokens.spacing.s1,
-  },
-  iconBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   accordionList: {
     gap: tokens.spacing.s2,

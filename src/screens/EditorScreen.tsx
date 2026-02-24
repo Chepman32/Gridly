@@ -3,6 +3,8 @@ import {
   Alert,
   Dimensions,
   Image,
+  type ImageLoadEventData,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,7 +29,6 @@ import {useAppTheme} from '../theme/useAppTheme';
 import {DEFAULT_PRESET, DEFAULT_TRANSFORM, GRID_PRESETS} from '../types/models';
 import {getFillTransform, getFitTransform, snapToZero} from '../utils/imageMath';
 import {resolveImageUri} from '../utils/imagePath';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Editor'>;
 
@@ -37,7 +38,6 @@ const FALLBACK_IMAGE_SIZE = {width: 1, height: 1};
 
 export const EditorScreen = ({route, navigation}: Props) => {
   const theme = useAppTheme();
-  const insets = useSafeAreaInsets();
   const project = useAppStore(state =>
     state.projects.find(item => item.id === route.params.projectId),
   );
@@ -84,17 +84,20 @@ export const EditorScreen = ({route, navigation}: Props) => {
   const baseImageWidth = imageAspect > canvasAspect ? canvasHeight * imageAspect : width;
   const baseImageHeight = imageAspect > canvasAspect ? canvasHeight : width / imageAspect;
 
-  const clampTranslation = (x: number, y: number, currentScale: number) => {
-    'worklet';
-    const scaledWidth = baseImageWidth * currentScale;
-    const scaledHeight = baseImageHeight * currentScale;
-    const maxX = Math.max(0, (scaledWidth - width) / 2);
-    const maxY = Math.max(0, (scaledHeight - canvasHeight) / 2);
-    return {
-      x: Math.max(-maxX, Math.min(maxX, x)),
-      y: Math.max(-maxY, Math.min(maxY, y)),
-    };
-  };
+  const clampTranslation = React.useCallback(
+    (x: number, y: number, currentScale: number) => {
+      'worklet';
+      const scaledWidth = baseImageWidth * currentScale;
+      const scaledHeight = baseImageHeight * currentScale;
+      const maxX = Math.max(0, (scaledWidth - width) / 2);
+      const maxY = Math.max(0, (scaledHeight - canvasHeight) / 2);
+      return {
+        x: Math.max(-maxX, Math.min(maxX, x)),
+        y: Math.max(-maxY, Math.min(maxY, y)),
+      };
+    },
+    [baseImageHeight, baseImageWidth, canvasHeight, width],
+  );
 
   React.useEffect(() => {
     if (!project?.imageUri) {
@@ -123,32 +126,51 @@ export const EditorScreen = ({route, navigation}: Props) => {
     };
   }, [project?.imageUri]);
 
+  const handleImageLoad = React.useCallback(
+    (event: NativeSyntheticEvent<ImageLoadEventData>) => {
+      const nextWidth = Math.max(1, event.nativeEvent.source.width || 1);
+      const nextHeight = Math.max(1, event.nativeEvent.source.height || 1);
+      setImageSize(prev =>
+        prev.width === nextWidth && prev.height === nextHeight
+          ? prev
+          : {width: nextWidth, height: nextHeight},
+      );
+    },
+    [],
+  );
+
   React.useEffect(() => {
     if (!project) {
       return;
     }
-    const clamped = clampTranslation(translateX.value, translateY.value, scale.value);
-    if (clamped.x === translateX.value && clamped.y === translateY.value) {
-      return;
-    }
+    const safeScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, project.transform.scale));
+    const clamped = clampTranslation(project.transform.x, project.transform.y, safeScale);
     translateX.value = clamped.x;
     translateY.value = clamped.y;
+    scale.value = safeScale;
+    rotation.value = project.transform.rotation;
+
+    if (
+      clamped.x === project.transform.x &&
+      clamped.y === project.transform.y &&
+      safeScale === project.transform.scale
+    ) {
+      return;
+    }
+
     void updateProject(projectId, {
       transform: {
-        ...safeProject.transform,
+        ...project.transform,
         x: clamped.x,
         y: clamped.y,
-        scale: scale.value,
-        rotation: rotation.value,
+        scale: safeScale,
       },
     });
   }, [
-    baseImageHeight,
-    baseImageWidth,
-    canvasHeight,
     project,
     projectId,
-    safeProject.transform,
+    clampTranslation,
+    rotation,
     scale,
     translateX,
     translateY,
@@ -170,12 +192,17 @@ export const EditorScreen = ({route, navigation}: Props) => {
   };
 
   const saveTransform = () => {
+    const safeScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale.value));
+    const clamped = clampTranslation(translateX.value, translateY.value, safeScale);
+    translateX.value = clamped.x;
+    translateY.value = clamped.y;
+    scale.value = safeScale;
     updateProject(projectId, {
       transform: {
         ...safeProject.transform,
-        x: translateX.value,
-        y: translateY.value,
-        scale: scale.value,
+        x: clamped.x,
+        y: clamped.y,
+        scale: safeScale,
         rotation: rotation.value,
       },
     });
@@ -316,10 +343,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
 
   return (
     <View style={[styles.root, {backgroundColor: theme.colors.background}]}> 
-      <View style={[styles.topBar, {paddingTop: insets.top}]}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.topBtn}>
-          <Text style={[styles.topBtnText, {color: theme.colors.brandPrimary}]}>Back</Text>
-        </Pressable>
+      <View style={styles.topBar}>
         <Pressable
           onPress={() =>
             Alert.prompt('Rename project', undefined, text => {
@@ -345,6 +369,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
+        scrollEnabled={false}
         showsVerticalScrollIndicator={false}>
         <GestureDetector gesture={gesture}>
           <View style={[styles.canvas, {height: canvasHeight, borderRadius: tokens.radius.canvas}]}>
@@ -360,7 +385,12 @@ export const EditorScreen = ({route, navigation}: Props) => {
                 panStyle,
               ]}>
               <Animated.View style={[styles.imageInner, zoomRotateStyle]}>
-                <Image source={{uri: resolveImageUri(project.imageUri)}} style={styles.canvasImage} resizeMode="cover" />
+                <Image
+                  source={{uri: resolveImageUri(project.imageUri)}}
+                  style={styles.canvasImage}
+                  resizeMode="cover"
+                  onLoad={handleImageLoad}
+                />
               </Animated.View>
             </Animated.View>
             <GridOverlayCanvas
@@ -372,7 +402,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
         </GestureDetector>
       </ScrollView>
 
-      <Animated.View style={[styles.controls, controlsStyle, {paddingBottom: insets.bottom + tokens.spacing.s2}]}>
+      <Animated.View style={[styles.controls, controlsStyle, {paddingBottom: tokens.spacing.s2}]}>
         <Text style={[styles.sectionLabel, {color: theme.colors.textSecondary}]}>Preset</Text>
         <PresetPicker
           presets={GRID_PRESETS}
@@ -465,9 +495,10 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     paddingHorizontal: tokens.spacing.s2,
     paddingVertical: tokens.spacing.s1,
+    gap: tokens.spacing.s2,
   },
   topBtn: {
     minWidth: 44,

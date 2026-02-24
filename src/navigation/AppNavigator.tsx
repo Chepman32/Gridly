@@ -9,7 +9,7 @@ import {SplashScreen} from '../screens/SplashScreen';
 import {ProjectsScreen} from '../screens/ProjectsScreen';
 import {CreateScreen} from '../screens/CreateScreen';
 import {CustomTemplatesScreen} from '../screens/CustomTemplatesScreen';
-import {LearnScreen} from '../screens/LearnScreen';
+import {SettingsScreen} from '../screens/SettingsScreen';
 import {EditorScreen} from '../screens/EditorScreen';
 import {PreviewScreen} from '../screens/PreviewScreen';
 import {ExportScreen} from '../screens/ExportScreen';
@@ -37,7 +37,7 @@ const TabNavigator = () => {
               ? 'grid-outline'
               : route.name === 'CustomTemplates'
               ? 'layers-outline'
-              : 'book-outline';
+              : 'settings-outline';
           return <Icon name={iconName} color={color} size={size} />;
         },
       })}>
@@ -47,7 +47,7 @@ const TabNavigator = () => {
         component={CustomTemplatesScreen}
         options={{title: 'Templates'}}
       />
-      <Tabs.Screen name="Learn" component={LearnScreen} options={{title: 'Learn'}} />
+      <Tabs.Screen name="Settings" component={SettingsScreen} options={{title: 'Settings'}} />
     </Tabs.Navigator>
   );
 };
@@ -69,14 +69,10 @@ export const AppNavigator = () => {
         <RootStack.Screen
           name="MainTabs"
           component={TabNavigator}
-          options={{headerShown: false}}
+          options={{headerShown: false, title: 'Projects'}}
         />
         <RootStack.Screen name="Create" component={CreateScreen} options={{title: 'Create'}} />
-        <RootStack.Screen
-          name="Editor"
-          component={EditorScreen}
-          options={{headerShown: false}}
-        />
+        <RootStack.Screen name="Editor" component={EditorScreen} options={{title: 'Edit'}} />
         <RootStack.Screen name="Preview" component={PreviewScreen} options={{title: 'Preview'}} />
         <RootStack.Screen name="Export" component={ExportScreen} options={{title: 'Export'}} />
         <RootStack.Screen

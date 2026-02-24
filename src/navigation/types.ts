@@ -11,5 +11,5 @@ export type RootStackParamList = {
 export type MainTabsParamList = {
   Projects: undefined;
   CustomTemplates: undefined;
-  Learn: undefined;
+  Settings: undefined;
 };

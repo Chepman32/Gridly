@@ -8,7 +8,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
 import {Project} from '../types/models';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
@@ -18,7 +17,6 @@ import {resolveImageUri} from '../utils/imagePath';
 type Props = {
   project: Project;
   onPress: () => void;
-  onToggleFavorite: () => void;
   onLongPress?: () => void;
   deleting?: boolean;
   onDeleteAnimationEnd?: () => void;
@@ -29,7 +27,6 @@ const PARTICLE_COUNT = 34;
 export const ProjectCard = ({
   project,
   onPress,
-  onToggleFavorite,
   onLongPress,
   deleting,
   onDeleteAnimationEnd,
@@ -141,13 +138,6 @@ export const ProjectCard = ({
           ]}>
           <View style={styles.thumbWrap}>
             <Image source={{uri: resolveImageUri(project.imageUri)}} style={styles.thumb} resizeMode="cover" />
-            <Pressable onPress={onToggleFavorite} style={styles.starBtn}>
-              <Icon
-                name={project.favorite ? 'star' : 'star-outline'}
-                size={18}
-                color={project.favorite ? theme.colors.warning : theme.colors.textPrimary}
-              />
-            </Pressable>
           </View>
           <View style={styles.meta}>
             <Text style={[styles.title, {color: theme.colors.textPrimary}]} numberOfLines={1}>
@@ -209,17 +199,6 @@ const styles = StyleSheet.create({
   thumb: {
     width: '100%',
     height: '100%',
-  },
-  starBtn: {
-    position: 'absolute',
-    top: tokens.spacing.s1,
-    right: tokens.spacing.s1,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   meta: {
     padding: tokens.spacing.s1,
