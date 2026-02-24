@@ -24,7 +24,7 @@ import {RootStackParamList} from '../navigation/types';
 import {useAppStore} from '../state/useAppStore';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
-import {DEFAULT_PRESET, DEFAULT_TRANSFORM} from '../types/models';
+import {DEFAULT_PRESET, DEFAULT_TRANSFORM, GRID_PRESETS} from '../types/models';
 import {getFillTransform, getFitTransform, snapToZero} from '../utils/imageMath';
 import {resolveImageUri} from '../utils/imagePath';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -41,6 +41,7 @@ export const EditorScreen = ({route, navigation}: Props) => {
   const project = useAppStore(state =>
     state.projects.find(item => item.id === route.params.projectId),
   );
+  const customTemplates = useAppStore(state => state.customTemplates);
   const updateProject = useAppStore(state => state.updateProject);
 
   const safeProject =
@@ -374,9 +375,22 @@ export const EditorScreen = ({route, navigation}: Props) => {
       <Animated.View style={[styles.controls, controlsStyle, {paddingBottom: insets.bottom + tokens.spacing.s2}]}>
         <Text style={[styles.sectionLabel, {color: theme.colors.textSecondary}]}>Preset</Text>
         <PresetPicker
+          presets={GRID_PRESETS}
           selected={project.preset}
           onSelect={preset => updateProject(projectId, {preset})}
         />
+        <Text style={[styles.sectionLabel, {color: theme.colors.textSecondary}]}>Custom Templates</Text>
+        {customTemplates.length ? (
+          <PresetPicker
+            presets={customTemplates}
+            selected={project.preset}
+            onSelect={preset => updateProject(projectId, {preset})}
+          />
+        ) : (
+          <Text style={[styles.emptyCustomText, {color: theme.colors.textSecondary}]}>
+            No custom templates yet.
+          </Text>
+        )}
 
         <View style={styles.quickControls}>
           <Pressable
@@ -495,6 +509,9 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     ...tokens.typography.footnote,
+  },
+  emptyCustomText: {
+    ...tokens.typography.subhead,
   },
   quickControls: {
     flexDirection: 'row',

@@ -1,9 +1,10 @@
 import {MMKV} from 'react-native-mmkv';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Folder, Project} from '../types/models';
+import {Folder, GridPreset, Project} from '../types/models';
 
 const PROJECTS_KEY = 'gridly.projects.v1';
 const FOLDERS_KEY = 'gridly.folders.v1';
+const CUSTOM_TEMPLATES_KEY = 'gridly.custom-templates.v1';
 const MIGRATED_KEY = 'gridly.migrated-from-async';
 
 const mmkv = new MMKV({id: 'gridly-storage'});
@@ -78,5 +79,22 @@ export const projectStorage = {
 
   writeFolders(folders: Folder[]) {
     safeSet(FOLDERS_KEY, JSON.stringify(folders));
+  },
+
+  readCustomTemplates(): GridPreset[] {
+    const raw = mmkv.getString(CUSTOM_TEMPLATES_KEY);
+    if (!raw) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw) as GridPreset[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  writeCustomTemplates(customTemplates: GridPreset[]) {
+    safeSet(CUSTOM_TEMPLATES_KEY, JSON.stringify(customTemplates));
   },
 };

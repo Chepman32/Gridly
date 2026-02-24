@@ -8,7 +8,7 @@ import {RootStackParamList, MainTabsParamList} from './types';
 import {SplashScreen} from '../screens/SplashScreen';
 import {ProjectsScreen} from '../screens/ProjectsScreen';
 import {CreateScreen} from '../screens/CreateScreen';
-import {ExportHubScreen} from '../screens/ExportHubScreen';
+import {CustomTemplatesScreen} from '../screens/CustomTemplatesScreen';
 import {LearnScreen} from '../screens/LearnScreen';
 import {EditorScreen} from '../screens/EditorScreen';
 import {PreviewScreen} from '../screens/PreviewScreen';
@@ -35,14 +35,18 @@ const TabNavigator = () => {
           const iconName =
             route.name === 'Projects'
               ? 'grid-outline'
-              : route.name === 'ExportHub'
-              ? 'download-outline'
+              : route.name === 'CustomTemplates'
+              ? 'layers-outline'
               : 'book-outline';
           return <Icon name={iconName} color={color} size={size} />;
         },
       })}>
       <Tabs.Screen name="Projects" component={ProjectsScreen} options={{title: 'Projects'}} />
-      <Tabs.Screen name="ExportHub" component={ExportHubScreen} options={{title: 'Export'}} />
+      <Tabs.Screen
+        name="CustomTemplates"
+        component={CustomTemplatesScreen}
+        options={{title: 'Templates'}}
+      />
       <Tabs.Screen name="Learn" component={LearnScreen} options={{title: 'Learn'}} />
     </Tabs.Navigator>
   );

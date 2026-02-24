@@ -11,7 +11,7 @@ import {PresetPicker} from '../components/PresetPicker';
 import {useAppStore} from '../state/useAppStore';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
-import {DEFAULT_PRESET} from '../types/models';
+import {DEFAULT_PRESET, GRID_PRESETS} from '../types/models';
 import {RootStackParamList} from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -26,6 +26,7 @@ export const CreateScreen = () => {
   const theme = useAppTheme();
   const navigation = useNavigation<Nav>();
   const addProject = useAppStore(state => state.addProject);
+  const customTemplates = useAppStore(state => state.customTemplates);
   const selectedPreset = useAppStore(state => state.selectedPreset) ?? DEFAULT_PRESET;
   const setSelectedPreset = useAppStore(state => state.setSelectedPreset);
 
@@ -136,7 +137,28 @@ export const CreateScreen = () => {
 
       <View style={styles.sectionGap}>
         <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>Presets</Text>
-        <PresetPicker selected={selectedPreset} onSelect={setSelectedPreset} />
+        <PresetPicker
+          presets={GRID_PRESETS}
+          selected={selectedPreset}
+          onSelect={setSelectedPreset}
+        />
+      </View>
+
+      <View style={styles.customSectionGap}>
+        <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>
+          Custom Templates
+        </Text>
+        {customTemplates.length ? (
+          <PresetPicker
+            presets={customTemplates}
+            selected={selectedPreset}
+            onSelect={setSelectedPreset}
+          />
+        ) : (
+          <Text style={[styles.emptyCustomText, {color: theme.colors.textSecondary}]}>
+            No custom templates yet.
+          </Text>
+        )}
       </View>
 
       <Pressable
@@ -171,8 +193,15 @@ const styles = StyleSheet.create({
     marginTop: tokens.spacing.s2,
     gap: tokens.spacing.s1,
   },
+  customSectionGap: {
+    marginTop: tokens.spacing.s1,
+    gap: tokens.spacing.s1,
+  },
   sectionTitle: {
     ...tokens.typography.footnote,
+  },
+  emptyCustomText: {
+    ...tokens.typography.subhead,
   },
   sampleBtn: {
     marginTop: tokens.spacing.s3,

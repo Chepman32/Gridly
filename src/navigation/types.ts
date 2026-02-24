@@ -10,6 +10,6 @@ export type RootStackParamList = {
 
 export type MainTabsParamList = {
   Projects: undefined;
-  ExportHub: undefined;
+  CustomTemplates: undefined;
   Learn: undefined;
 };

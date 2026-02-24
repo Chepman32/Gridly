@@ -6,12 +6,14 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {ScreenContainer} from '../components/ScreenContainer';
 import {SegmentedControl} from '../components/SegmentedControl';
 import {PrimaryButton} from '../components/PrimaryButton';
+import {PresetPicker} from '../components/PresetPicker';
 import {RootStackParamList} from '../navigation/types';
 import {useAppStore} from '../state/useAppStore';
 import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 import {buildPostingOrder, buildTilePositions} from '../utils/postingOrder';
 import {resolveImageUri} from '../utils/imagePath';
+import {GRID_PRESETS, type GridPreset} from '../types/models';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Preview'>;
 type PreviewTab = 'Tiles' | 'Posting Order' | 'Simulation';
@@ -23,6 +25,8 @@ export const PreviewScreen = ({route, navigation}: Props) => {
   const project = useAppStore(state =>
     state.projects.find(item => item.id === route.params.projectId),
   );
+  const customTemplates = useAppStore(state => state.customTemplates);
+  const updateProject = useAppStore(state => state.updateProject);
   const [tab, setTab] = React.useState<PreviewTab>('Tiles');
   const [showNumbers, setShowNumbers] = React.useState(true);
 
@@ -55,6 +59,10 @@ export const PreviewScreen = ({route, navigation}: Props) => {
       </ScreenContainer>
     );
   }
+
+  const handlePresetSelect = (preset: GridPreset) => {
+    updateProject(project.id, {preset});
+  };
 
   const tilePositions = buildTilePositions(project.preset);
   const postingOrder = buildPostingOrder(project.preset);
@@ -134,6 +142,32 @@ export const PreviewScreen = ({route, navigation}: Props) => {
           </View>
         </View>
       ) : null}
+
+      <View style={styles.sectionGap}>
+        <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>Preset</Text>
+        <PresetPicker
+          presets={GRID_PRESETS}
+          selected={project.preset}
+          onSelect={handlePresetSelect}
+        />
+      </View>
+
+      <View style={styles.customSectionGap}>
+        <Text style={[styles.sectionTitle, {color: theme.colors.textSecondary}]}>
+          Custom Templates
+        </Text>
+        {customTemplates.length ? (
+          <PresetPicker
+            presets={customTemplates}
+            selected={project.preset}
+            onSelect={handlePresetSelect}
+          />
+        ) : (
+          <Text style={[styles.emptyCustomText, {color: theme.colors.textSecondary}]}>
+            No custom templates yet.
+          </Text>
+        )}
+      </View>
 
       <Pressable
         onPress={() => setShowNumbers(current => !current)}
@@ -220,6 +254,20 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sectionGap: {
+    marginTop: tokens.spacing.s2,
+    gap: tokens.spacing.s1,
+  },
+  customSectionGap: {
+    marginTop: tokens.spacing.s1,
+    gap: tokens.spacing.s1,
+  },
+  sectionTitle: {
+    ...tokens.typography.footnote,
+  },
+  emptyCustomText: {
+    ...tokens.typography.subhead,
   },
   toggleRow: {
     marginTop: tokens.spacing.s2,

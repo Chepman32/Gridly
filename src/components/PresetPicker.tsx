@@ -5,15 +5,16 @@ import {tokens} from '../theme/tokens';
 import {useAppTheme} from '../theme/useAppTheme';
 
 type Props = {
+  presets?: GridPreset[];
   selected: GridPreset;
   onSelect: (preset: GridPreset) => void;
 };
 
-export const PresetPicker = ({selected, onSelect}: Props) => {
+export const PresetPicker = ({presets = GRID_PRESETS, selected, onSelect}: Props) => {
   const theme = useAppTheme();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-      {GRID_PRESETS.map(preset => {
+      {presets.map(preset => {
         const active = selected.id === preset.id;
         return (
           <Pressable

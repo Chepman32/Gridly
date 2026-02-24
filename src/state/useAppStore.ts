@@ -6,6 +6,7 @@ import {
   ALL_PROJECTS_FOLDER_ID,
   ExportBatch,
   Folder,
+  GRID_PRESETS,
   GridPreset,
   Project,
   TRASH_FOLDER_ID,
@@ -16,10 +17,15 @@ import {makeId} from '../utils/id';
 
 const IMAGE_DIR = `${RNFS.DocumentDirectoryPath}/gridly/images`;
 const FALLBACK_FOLDER_NAME = 'Folder';
+const TEMPLATE_MIN_COLUMNS = 3;
+const TEMPLATE_MAX_COLUMNS = 10;
+const TEMPLATE_MIN_ROWS = 1;
+const TEMPLATE_MAX_ROWS = 10;
 
 type AppState = {
   projects: Project[];
   folders: Folder[];
+  customTemplates: GridPreset[];
   loaded: boolean;
   selectedPreset: GridPreset | null;
   postedByBatch: Record<string, number[]>;
@@ -38,6 +44,8 @@ type AppState = {
   duplicateProject: (projectId: string) => void;
   renameFolder: (folderId: string, nextName: string) => void;
   removeFolder: (folderId: string) => void;
+  addCustomTemplate: (columns: number, rows: number) => GridPreset | null;
+  removeCustomTemplate: (templateId: string) => void;
   addExportBatch: (projectId: string, batch: ExportBatch) => void;
   setPostedTile: (batchId: string, tile: number) => void;
 };
@@ -112,6 +120,42 @@ const normalizeProjects = (projects: Project[], folders: Folder[]) => {
   });
 
   return {projects: normalized, changed};
+};
+
+const sanitizeCustomTemplates = (templates: GridPreset[]) => {
+  const seen = new Set<string>();
+  const sanitized: GridPreset[] = [];
+
+  for (const template of templates) {
+    const columns = Number(template?.columns);
+    const rows = Number(template?.rows);
+    if (
+      !Number.isFinite(columns) ||
+      !Number.isFinite(rows) ||
+      columns < TEMPLATE_MIN_COLUMNS ||
+      columns > TEMPLATE_MAX_COLUMNS ||
+      rows < TEMPLATE_MIN_ROWS ||
+      rows > TEMPLATE_MAX_ROWS
+    ) {
+      continue;
+    }
+
+    const normalizedColumns = Math.round(columns);
+    const normalizedRows = Math.round(rows);
+    const key = `${normalizedColumns}x${normalizedRows}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    sanitized.push({
+      id: `custom-${key}`,
+      label: `${normalizedColumns}×${normalizedRows}`,
+      columns: normalizedColumns,
+      rows: normalizedRows,
+    });
+  }
+
+  return sanitized;
 };
 
 /**
@@ -194,14 +238,16 @@ const maybeMigrateProjectImageUris = async (projects: Project[]) => {
   return {projects: nextProjects, changed};
 };
 
-const persistState = (projects: Project[], folders: Folder[]) => {
+const persistState = (projects: Project[], folders: Folder[], customTemplates: GridPreset[]) => {
   projectStorage.writeProjects(projects);
   projectStorage.writeFolders(folders);
+  projectStorage.writeCustomTemplates(customTemplates);
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   folders: [],
+  customTemplates: [],
   loaded: false,
   selectedPreset: null,
   postedByBatch: {},
@@ -212,8 +258,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const storedProjects = projectStorage.readProjects();
     const storedFolders = projectStorage.readFolders();
+    const storedCustomTemplates = projectStorage.readCustomTemplates();
 
     const folders = sanitizeFolders(storedFolders);
+    const customTemplates = sanitizeCustomTemplates(storedCustomTemplates);
     const normalized = normalizeProjects(storedProjects, folders);
     const migrated = await maybeMigrateProjectImageUris(normalized.projects);
     const relativized = migrateToRelativeImagePaths(migrated.projects);
@@ -222,12 +270,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       normalized.changed ||
       migrated.changed ||
       relativized.changed ||
-      folders.length !== storedFolders.length
+      folders.length !== storedFolders.length ||
+      customTemplates.length !== storedCustomTemplates.length
     ) {
-      persistState(relativized.projects, folders);
+      persistState(relativized.projects, folders, customTemplates);
     }
 
-    set({projects: relativized.projects, folders, loaded: true});
+    set({projects: relativized.projects, folders, customTemplates, loaded: true});
   },
 
   setSelectedPreset: preset => set({selectedPreset: preset}),
@@ -245,7 +294,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       updatedAt: now,
     };
     const folders = [...get().folders, folder];
-    persistState(get().projects, folders);
+    persistState(get().projects, folders, get().customTemplates);
     set({folders});
     return folder;
   },
@@ -260,7 +309,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       folderId,
     });
     const projects = [project, ...get().projects];
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
     return project;
   },
@@ -285,7 +334,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         updatedAt: new Date().toISOString(),
       };
     });
-    persistState(projects, folders);
+    persistState(projects, folders, get().customTemplates);
     set({projects});
   },
 
@@ -303,7 +352,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         : project,
     );
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
   },
 
@@ -326,7 +375,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         updatedAt: new Date().toISOString(),
       };
     });
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
   },
 
@@ -347,19 +396,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         updatedAt: new Date().toISOString(),
       };
     });
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
   },
 
   removeProjectPermanently: projectId => {
     const projects = get().projects.filter(project => project.id !== projectId);
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
   },
 
   cleanTrash: () => {
     const projects = get().projects.filter(project => !isProjectInTrash(project));
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
   },
 
@@ -378,7 +427,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         : project,
     );
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
   },
 
@@ -399,7 +448,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       duplicateProject(source, {folderId: destinationFolderId}),
       ...get().projects,
     ];
-    persistState(projects, folders);
+    persistState(projects, folders, get().customTemplates);
     set({projects});
   },
 
@@ -417,7 +466,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         : folder,
     );
-    persistState(get().projects, folders);
+    persistState(get().projects, folders, get().customTemplates);
     set({folders});
   },
 
@@ -444,8 +493,59 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       return project;
     });
-    persistState(projects, nextFolders);
+    persistState(projects, nextFolders, get().customTemplates);
     set({projects, folders: nextFolders});
+  },
+
+  addCustomTemplate: (columns, rows) => {
+    const normalizedColumns = Math.round(columns);
+    const normalizedRows = Math.round(rows);
+    if (
+      normalizedColumns < TEMPLATE_MIN_COLUMNS ||
+      normalizedColumns > TEMPLATE_MAX_COLUMNS ||
+      normalizedRows < TEMPLATE_MIN_ROWS ||
+      normalizedRows > TEMPLATE_MAX_ROWS
+    ) {
+      return null;
+    }
+
+    const presetId = `${normalizedColumns}x${normalizedRows}`;
+    const duplicateInDefault = GRID_PRESETS.some(
+      preset => preset.columns === normalizedColumns && preset.rows === normalizedRows,
+    );
+    const duplicateInCustom = get().customTemplates.some(
+      template =>
+        template.columns === normalizedColumns && template.rows === normalizedRows,
+    );
+    if (duplicateInDefault || duplicateInCustom) {
+      return null;
+    }
+
+    const template: GridPreset = {
+      id: `custom-${presetId}`,
+      label: `${normalizedColumns}×${normalizedRows}`,
+      columns: normalizedColumns,
+      rows: normalizedRows,
+    };
+    const customTemplates = [...get().customTemplates, template];
+    persistState(get().projects, get().folders, customTemplates);
+    set({customTemplates});
+    return template;
+  },
+
+  removeCustomTemplate: templateId => {
+    const customTemplates = get().customTemplates.filter(template => template.id !== templateId);
+    if (customTemplates.length === get().customTemplates.length) {
+      return;
+    }
+    persistState(get().projects, get().folders, customTemplates);
+    set(state => ({
+      customTemplates,
+      selectedPreset:
+        state.selectedPreset && state.selectedPreset.id === templateId
+          ? null
+          : state.selectedPreset,
+    }));
   },
 
   addExportBatch: (projectId, batch) => {
@@ -458,7 +558,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         : project,
     );
-    persistState(projects, get().folders);
+    persistState(projects, get().folders, get().customTemplates);
     set({projects});
   },
 
