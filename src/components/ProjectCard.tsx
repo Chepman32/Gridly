@@ -24,7 +24,7 @@ type Props = {
   onDeleteAnimationEnd?: () => void;
 };
 
-const PARTICLE_COUNT = 20;
+const PARTICLE_COUNT = 34;
 
 export const ProjectCard = ({
   project,
@@ -43,8 +43,10 @@ export const ProjectCard = ({
       y: new Animated.Value(0),
       opacity: new Animated.Value(0),
       size: 2 + Math.round(Math.random() * 3),
-      targetX: (Math.random() - 0.5) * 90,
-      targetY: -20 - Math.random() * 120,
+      startX: (Math.random() - 0.5) * 120,
+      startY: (Math.random() - 0.5) * 170,
+      targetX: (Math.random() - 0.5) * 140,
+      targetY: -30 - Math.random() * 170,
     })),
   ).current;
   const [showParticles, setShowParticles] = React.useState(false);
@@ -57,33 +59,38 @@ export const ProjectCard = ({
     didRunDeleteAnimation.current = true;
     setShowParticles(true);
 
-    const particleAnimations = particles.flatMap(p => [
-      Animated.timing(p.opacity, {
-        toValue: 1,
-        duration: 70,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(p.x, {
-        toValue: p.targetX,
-        duration: 420,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(p.y, {
-        toValue: p.targetY,
-        duration: 420,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(p.opacity, {
-        toValue: 0,
-        duration: 380,
-        delay: 40,
-        easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]);
+    const particleAnimations = particles.map((p, i) =>
+      Animated.sequence([
+        Animated.delay((i / PARTICLE_COUNT) * 60),
+        Animated.timing(p.opacity, {
+          toValue: 1,
+          duration: 70,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.parallel([
+          Animated.timing(p.x, {
+            toValue: p.targetX,
+            duration: 420,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(p.y, {
+            toValue: p.targetY,
+            duration: 420,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(p.opacity, {
+            toValue: 0,
+            duration: 380,
+            delay: 40,
+            easing: Easing.in(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    );
 
     Animated.parallel([
       Animated.timing(scale, {
@@ -114,49 +121,51 @@ export const ProjectCard = ({
   }, [deleting, onDeleteAnimationEnd, opacity, particles, scale]);
 
   return (
-    <Animated.View style={{transform: [{scale}], opacity}}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Project, ${project.preset.label} grid, last exported ${
-          project.exports[0] ? formatDate(project.exports[0].createdAt) : 'never'
-        }, tile size ${project.tileResolution}`}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        delayLongPress={280}
-        style={({pressed}) => [
-          styles.card,
-          {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.separator,
-            transform: [{scale: pressed ? 0.99 : 1}],
-          },
-        ]}>
-        <View style={styles.thumbWrap}>
-          <Image source={{uri: resolveImageUri(project.imageUri)}} style={styles.thumb} resizeMode="cover" />
-          <Pressable onPress={onToggleFavorite} style={styles.starBtn}>
-            <Icon
-              name={project.favorite ? 'star' : 'star-outline'}
-              size={18}
-              color={project.favorite ? theme.colors.warning : theme.colors.textPrimary}
-            />
-          </Pressable>
-        </View>
-        <View style={styles.meta}>
-          <Text style={[styles.title, {color: theme.colors.textPrimary}]} numberOfLines={1}>
-            {project.name}
-          </Text>
-          <View style={[styles.badge, {borderColor: theme.colors.separator}]}> 
-            <Text style={[styles.badgeLabel, {color: theme.colors.textSecondary}]}>
-              {project.preset.label}
+    <View>
+      <Animated.View style={{transform: [{scale}], opacity}}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Project, ${project.preset.label} grid, last exported ${
+            project.exports[0] ? formatDate(project.exports[0].createdAt) : 'never'
+          }, tile size ${project.tileResolution}`}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={280}
+          style={({pressed}) => [
+            styles.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.separator,
+              transform: [{scale: pressed ? 0.99 : 1}],
+            },
+          ]}>
+          <View style={styles.thumbWrap}>
+            <Image source={{uri: resolveImageUri(project.imageUri)}} style={styles.thumb} resizeMode="cover" />
+            <Pressable onPress={onToggleFavorite} style={styles.starBtn}>
+              <Icon
+                name={project.favorite ? 'star' : 'star-outline'}
+                size={18}
+                color={project.favorite ? theme.colors.warning : theme.colors.textPrimary}
+              />
+            </Pressable>
+          </View>
+          <View style={styles.meta}>
+            <Text style={[styles.title, {color: theme.colors.textPrimary}]} numberOfLines={1}>
+              {project.name}
+            </Text>
+            <View style={[styles.badge, {borderColor: theme.colors.separator}]}>
+              <Text style={[styles.badgeLabel, {color: theme.colors.textSecondary}]}>
+                {project.preset.label}
+              </Text>
+            </View>
+            <Text style={[styles.sub, {color: theme.colors.textSecondary}]} numberOfLines={2}>
+              {project.exports[0]
+                ? `Exported ${formatDate(project.exports[0].createdAt)} · ${project.tileResolution}px`
+                : `No exports yet · ${project.tileResolution}px`}
             </Text>
           </View>
-          <Text style={[styles.sub, {color: theme.colors.textSecondary}]} numberOfLines={2}>
-            {project.exports[0]
-              ? `Exported ${formatDate(project.exports[0].createdAt)} · ${project.tileResolution}px`
-              : `No exports yet · ${project.tileResolution}px`}
-          </Text>
-        </View>
-      </Pressable>
+        </Pressable>
+      </Animated.View>
       {showParticles ? (
         <View pointerEvents="none" style={styles.particleLayer}>
           {particles.map((particle, index) => (
@@ -170,14 +179,19 @@ export const ProjectCard = ({
                   borderRadius: particle.size / 2,
                   backgroundColor: theme.colors.textSecondary,
                   opacity: particle.opacity,
-                  transform: [{translateX: particle.x}, {translateY: particle.y}],
+                  transform: [
+                    {translateX: particle.startX ?? 0},
+                    {translateY: particle.startY ?? 0},
+                    {translateX: particle.x},
+                    {translateY: particle.y},
+                  ],
                 },
               ]}
             />
           ))}
         </View>
       ) : null}
-    </Animated.View>
+    </View>
   );
 };
 
@@ -230,7 +244,6 @@ const styles = StyleSheet.create({
   },
   particleLayer: {
     ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
   },
   particle: {
     position: 'absolute',

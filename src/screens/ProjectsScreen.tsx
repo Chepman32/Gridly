@@ -62,7 +62,10 @@ export const ProjectsScreen = () => {
   const [expandedFolders, setExpandedFolders] = React.useState<Record<string, boolean>>({
     [ALL_PROJECTS_FOLDER_ID]: true,
   });
-  const [deletingProjectId, setDeletingProjectId] = React.useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = React.useState<{
+    projectId: string;
+    mode: 'trash' | 'permanent';
+  } | null>(null);
 
   const activeProjects = React.useMemo(
     () => projects.filter(project => !isProjectInTrash(project)),
@@ -271,7 +274,7 @@ export const ProjectsScreen = () => {
             text: 'Move',
             style: 'destructive',
             onPress: () => {
-              setDeletingProjectId(project.id);
+              setPendingDelete({projectId: project.id, mode: 'trash'});
             },
           },
         ]);
@@ -290,7 +293,7 @@ export const ProjectsScreen = () => {
             text: 'Remove',
             style: 'destructive',
             onPress: () => {
-              removeProjectPermanently(project.id);
+              setPendingDelete({projectId: project.id, mode: 'permanent'});
             },
           },
         ]);
@@ -315,7 +318,6 @@ export const ProjectsScreen = () => {
       moveProjectToFolder,
       promptForText,
       recoverProject,
-      removeProjectPermanently,
       renameProject,
     ],
   );
@@ -538,22 +540,31 @@ export const ProjectsScreen = () => {
               style={[styles.accordionCard, {borderColor: theme.colors.separator}]}>
               {accordionHeaderPressable}
 
-              {expanded ? (
+              {(expanded || section.projects.some(p => p.id === pendingDelete?.projectId)) ? (
                 section.projects.length ? (
                   <View style={styles.grid}>
                     {section.projects.map(project => {
+                      const isDeleting = pendingDelete?.projectId === project.id;
+                      if (!expanded && !isDeleting) {
+                        return null;
+                      }
                       return (
                         <View key={`${section.id}-${project.id}`} style={styles.gridItem}>
                           <ProjectCard
                             project={project}
                             onPress={() => navigation.navigate('Preview', {projectId: project.id})}
                             onLongPress={() => showProjectActions(project)}
-                            deleting={deletingProjectId === project.id}
+                            deleting={isDeleting}
                             onDeleteAnimationEnd={() => {
-                              if (deletingProjectId !== project.id) {
+                              if (pendingDelete?.projectId !== project.id) {
                                 return;
                               }
-                              setDeletingProjectId(null);
+                              const deleteMode = pendingDelete.mode;
+                              setPendingDelete(null);
+                              if (deleteMode === 'permanent') {
+                                removeProjectPermanently(project.id);
+                                return;
+                              }
                               moveProjectToTrash(project.id);
                             }}
                             onToggleFavorite={() =>
@@ -619,7 +630,6 @@ const styles = StyleSheet.create({
   accordionCard: {
     borderWidth: 1,
     borderRadius: tokens.radius.m,
-    overflow: 'hidden',
   },
   accordionHeader: {
     minHeight: 48,
