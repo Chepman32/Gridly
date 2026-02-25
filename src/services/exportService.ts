@@ -1,9 +1,13 @@
 import RNFS from 'react-native-fs';
 import Share from 'react-native-share';
 import {zip} from 'react-native-zip-archive';
-import {CameraRoll} from '@react-native-camera-roll/camera-roll';
+import {
+  CameraRoll,
+  iosReadGalleryPermission,
+  iosRequestAddOnlyGalleryPermission,
+} from '@react-native-camera-roll/camera-roll';
 import PhotoManipulator from 'react-native-photo-manipulator';
-import {Image} from 'react-native';
+import {Image, Platform} from 'react-native';
 import {ExportBatch, Project} from '../types/models';
 import {buildPostingOrder} from '../utils/postingOrder';
 import {resolveImageUri} from '../utils/imagePath';
@@ -32,6 +36,28 @@ const ensureDirectory = async (path: string) => {
 
 const normalizePath = (uri: string) =>
   uri.startsWith('file://') ? uri.replace('file://', '') : uri;
+
+const hasPhotosAddPermission = async (): Promise<boolean> => {
+  if (Platform.OS !== 'ios') {
+    return true;
+  }
+
+  const current = await iosReadGalleryPermission('addOnly');
+  if (current === 'granted' || current === 'limited') {
+    return true;
+  }
+  if (current === 'unavailable') {
+    // If permission status cannot be determined, try the save flow directly.
+    return true;
+  }
+
+  if (current === 'not-determined') {
+    const requested = await iosRequestAddOnlyGalleryPermission();
+    return requested === 'granted' || requested === 'limited';
+  }
+
+  return false;
+};
 
 const getImageSize = (uri: string): Promise<{width: number; height: number}> =>
   new Promise((resolve, reject) => {
@@ -64,7 +90,6 @@ export const exportTiles = async (
   onProgress({stage: 'preparing', total});
 
   const sourceUri = resolveImageUri(project.imageUri);
-  const sourcePath = normalizePath(sourceUri);
   const exportDir = `${RNFS.DocumentDirectoryPath}/gridly/exports/${project.id}/${Date.now()}`;
   await ensureDirectory(`${RNFS.DocumentDirectoryPath}/gridly`);
   await ensureDirectory(`${RNFS.DocumentDirectoryPath}/gridly/exports`);
@@ -120,6 +145,10 @@ export const exportTiles = async (
 
   if (destination === 'photos') {
     onProgress({stage: 'writing'});
+    const permissionGranted = await hasPhotosAddPermission();
+    if (!permissionGranted) {
+      throw new Error('Photo library permission not granted');
+    }
     for (const tileUri of tileUris) {
       await CameraRoll.save(tileUri, {type: 'photo'});
     }
@@ -127,9 +156,11 @@ export const exportTiles = async (
 
   if (destination === 'share') {
     onProgress({stage: 'writing', message: 'Creating ZIP archive'});
-    const zipTarget = `${exportDir}/tiles.zip`;
+    const zipDir = `${RNFS.DocumentDirectoryPath}/gridly/zips`;
+    await ensureDirectory(zipDir);
+    const zipTarget = `${zipDir}/${project.id}_${Date.now()}.zip`;
     const zipPath = await zip(exportDir, zipTarget);
-    await Share.open({url: `file://${zipPath}`});
+    await Share.open({url: `file://${normalizePath(zipPath)}`, failOnCancel: false});
   }
 
   if (destination === 'files') {

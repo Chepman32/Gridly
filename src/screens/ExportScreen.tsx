@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Alert, Linking, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {PrimaryButton} from '../components/PrimaryButton';
 import {SecondaryButton} from '../components/SecondaryButton';
@@ -45,7 +45,7 @@ export const ExportScreen = ({route}: Props) => {
   const totalTiles = project.preset.columns * project.preset.rows;
   const estimatedSize = ((totalTiles * project.tileResolution * 0.22) / 1024).toFixed(1);
 
-  const run = async (destination: 'photos' | 'files' | 'share') => {
+  const run = async (destination: 'photos' | 'share') => {
     try {
       setRunning(true);
       const batch = await exportTiles(project, destination, progress => {
@@ -60,10 +60,25 @@ export const ExportScreen = ({route}: Props) => {
       });
       await addBatch(project.id, batch);
       Alert.alert('Export complete', 'Tiles were exported successfully.');
-    } catch {
+    } catch (error) {
       setStage('failed');
-      setProgressDetails('Export failed. You can retry or switch to Files output.');
-      Alert.alert('Export failed', 'Could not finish export. Try Files export as fallback.');
+      const message =
+        error instanceof Error ? error.message : 'Could not finish export.';
+
+      if (message.includes('Photo library permission')) {
+        setProgressDetails('Photos access denied. Enable Photos access in iOS Settings.');
+        Alert.alert(
+          'Photos permission required',
+          'Enable Photos access for Gridly in iOS Settings, then try again.',
+          [
+            {text: 'Cancel', style: 'cancel'},
+            {text: 'Open Settings', onPress: () => Linking.openSettings()},
+          ],
+        );
+      } else {
+        setProgressDetails('Export failed. You can retry or use ZIP sharing as fallback.');
+        Alert.alert('Export failed', `${message} Try Share as ZIP as fallback.`);
+      }
     } finally {
       setRunning(false);
     }
@@ -81,9 +96,6 @@ export const ExportScreen = ({route}: Props) => {
       <PrimaryButton label="Save All to Photos" onPress={() => run('photos')} loading={running} />
       <View style={styles.buttonGap}>
         <SecondaryButton label="Share as ZIP" onPress={() => run('share')} />
-      </View>
-      <View style={styles.buttonGap}>
-        <SecondaryButton label="Share Individually" onPress={() => run('files')} />
       </View>
 
       <View style={[styles.progress, {borderColor: theme.colors.separator}]}> 

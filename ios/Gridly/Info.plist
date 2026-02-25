@@ -35,6 +35,10 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Gridly saves exported tiles to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Gridly needs photo library access to save exported tiles.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
